@@ -1,0 +1,16 @@
+server.log
+server.pid
+codex-server*.log
+.env
+data/image-library.json
+uploads/
+node_modules/
+dist/
+build/
+.cache/
+.parcel-cache/
+.vite/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

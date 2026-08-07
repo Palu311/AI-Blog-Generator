@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI Blog Publishing Studio</title>
+    <meta name="description" content="A premium CRM-style AI blog generation workspace for SEO articles, metadata, image prompts, exports, and publishing drafts.">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar" aria-label="Application header">
+        <div>
+          <p class="eyebrow">CRM Content Tool</p>
+          <h1>AI Blog Publishing Studio</h1>
+        </div>
+        <div class="topbar-actions">
+          <span id="autosaveStatus" class="save-status">Draft saved locally</span>
+          <button type="button" id="publishedBlogsBtn">Published Blogs</button>
+          <button type="button" id="newDraftBtn">New Draft</button>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <aside class="panel input-panel" aria-label="AI blog generation input">
+          <div class="chat-header">
+            <div class="avatar" aria-hidden="true">AI</div>
+            <div>
+              <h2>Create a publish-ready blog</h2>
+              <p>Title is required. Add contain notes for a stronger article.</p>
+            </div>
+          </div>
+
+          <form id="generatorForm">
+            <label>
+              <span>Blog Title</span>
+              <textarea id="topic" rows="4" required placeholder="Example: How small law firms can use AI intake without losing trust"></textarea>
+            </label>
+
+            <label>
+              <span>Blog Contain</span>
+              <textarea id="details" rows="5" placeholder="Add facts, points, examples, audience notes, products, source notes, or ideas to include"></textarea>
+            </label>
+
+            <label>
+              <span>Company Website <small>(optional)</small></span>
+              <input id="companyWebsite" type="url" placeholder="https://example.com">
+            </label>
+
+            <details class="advanced-panel">
+              <summary>More settings</summary>
+              <div class="form-grid">
+                <label>
+                  <span>Primary Keyword</span>
+                  <input id="primaryKeyword" placeholder="Optional">
+                </label>
+                <label>
+                  <span>Secondary Keywords</span>
+                  <input id="secondaryKeywords" placeholder="Comma separated">
+                </label>
+                <label>
+                  <span>Target Country</span>
+                  <input id="country" placeholder="United States">
+                </label>
+                <label>
+                  <span>Target Audience</span>
+                  <input id="audience" placeholder="Marketing leaders, founders, buyers">
+                </label>
+                <label>
+                  <span>Brand Name</span>
+                  <input id="brand" placeholder="Optional">
+                </label>
+                <label>
+                  <span>Writing Tone</span>
+                  <select id="tone">
+                    <option>Professional, clear, human</option>
+                    <option>Authoritative and editorial</option>
+                    <option>Friendly and practical</option>
+                    <option>Executive and concise</option>
+                    <option>Journalistic and balanced</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Goal of Blog</span>
+                  <select id="goal">
+                    <option>Educate and convert qualified leads</option>
+                    <option>Build topical authority</option>
+                    <option>Support product consideration</option>
+                    <option>Explain a complex topic</option>
+                    <option>Generate newsletter content</option>
+                  </select>
+                </label>
+                <label>
+                  <span>CTA</span>
+                  <input id="cta" placeholder="Book a demo, download guide, contact us">
+                </label>
+                <label>
+                  <span>Language</span>
+                  <input id="language" placeholder="English">
+                </label>
+                <label>
+                  <span>Word Count</span>
+                  <input id="wordCount" type="number" min="700" step="100" placeholder="1800, 10000, 25000...">
+                </label>
+                <label>
+                  <span>Blog Format</span>
+                  <select id="blogFormat">
+                    <option>Magazine-style authority article</option>
+                    <option>Personal story and ideas essay</option>
+                    <option>How-to tutorial / walkthrough</option>
+                    <option>Listicle with ranked examples</option>
+                    <option>News-style feature article</option>
+                    <option>Product-led educational guide</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Design Template</span>
+                  <select id="designTemplate">
+                    <option>Clean editorial</option>
+                    <option>Premium magazine</option>
+                    <option>Creator blog</option>
+                    <option>Business resource hub</option>
+                    <option>SEO landing article</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Monetization</span>
+                  <select id="monetization">
+                    <option>None / educational</option>
+                    <option>Ads and sponsorships</option>
+                    <option>Affiliate recommendations</option>
+                    <option>Membership / gated resources</option>
+                    <option>Lead generation / CRM pipeline</option>
+                    <option>Digital product or course</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Distribution</span>
+                  <select id="distribution">
+                    <option>Website blog and SEO</option>
+                    <option>Newsletter and email campaign</option>
+                    <option>Medium-style publication</option>
+                    <option>Social media snippets</option>
+                    <option>Sales enablement resource</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Analytics Goal</span>
+                  <select id="analyticsGoal">
+                    <option>Organic traffic and ranking</option>
+                    <option>Audience growth and subscribers</option>
+                    <option>Lead conversion</option>
+                    <option>Engagement and reading depth</option>
+                    <option>Revenue attribution</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Community Angle</span>
+                  <input id="communityAngle" placeholder="Comments, membership, reader questions, creator voice">
+                </label>
+              </div>
+            </details>
+
+            <div class="button-row">
+              <button class="primary" type="submit">Generate Blog</button>
+              <button type="button" id="sampleBtn">Use Sample Brief</button>
+              <button type="button" id="regenerateBtn">Regenerate Entire Blog</button>
+            </div>
+          </form>
+        </aside>
+
+        <section class="preview-column" aria-label="Generated blog preview">
+          <div class="panel output-panel">
+            <div class="toolbar">
+              <div>
+                <p class="eyebrow">Live Preview</p>
+              <h2>Blog Content</h2>
+              </div>
+              <div class="tool-actions" aria-label="Output actions">
+                <button type="button" data-copy>Copy Blog</button>
+                <button type="button" data-download-word>Download Word</button>
+                <button type="button" data-download-pdf>Download PDF</button>
+              </div>
+            </div>
+
+            <div class="tabs" role="tablist" aria-label="Preview tabs">
+              <button class="tab active" type="button" data-tab="rendered">Preview</button>
+              <button class="tab" type="button" data-tab="markdown">Markdown</button>
+              <button class="tab" type="button" data-tab="seo">SEO & Suggestions</button>
+              <button class="tab" type="button" data-tab="images">Images</button>
+            </div>
+
+            <div id="emptyState" class="empty-state">
+              <div class="skeleton hero-skeleton"></div>
+              <div class="skeleton line wide"></div>
+              <div class="skeleton line"></div>
+              <div class="skeleton line short"></div>
+              <p>Your generated blog post will appear here. SEO, sources, suggestions, and image planning stay in separate tabs.</p>
+            </div>
+
+            <article id="renderedView" class="output-view prose active"></article>
+            <pre id="markdownView" class="output-view markdown-view"></pre>
+            <article id="seoView" class="output-view prose"></article>
+            <div id="imageView" class="output-view image-gallery"></div>
+          </div>
+        </section>
+
+      </section>
+
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
