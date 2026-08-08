@@ -1676,6 +1676,24 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.url === "/api/deploy-health" && req.method === "GET") {
+    sendJson(res, 200, {
+      ok: true,
+      vercel: Boolean(process.env.VERCEL),
+      staticFiles: {
+        index: fs.existsSync(path.join(root, "index.html")),
+        app: fs.existsSync(path.join(root, "app.js")),
+        styles: fs.existsSync(path.join(root, "styles.css"))
+      },
+      supabase: {
+        url: Boolean(supabaseUrl),
+        serviceRole: Boolean(supabaseServiceKey),
+        bucket: supabaseStorageBucket
+      }
+    });
+    return;
+  }
+
   if (req.url === "/api/login-config" && req.method === "GET") {
     sendJson(res, 200, { ok: true, loginRequired: true });
     return;
@@ -1927,7 +1945,7 @@ function serveStatic(req, res) {
   fs.readFile(filePath, (error, content) => {
     if (error) {
       res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-      res.end("Not found");
+      res.end(`Not found: ${path.basename(filePath)}`);
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
