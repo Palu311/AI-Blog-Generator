@@ -5,8 +5,11 @@ const path = require("path");
 const { execFile } = require("child_process");
 
 const root = __dirname;
-const dataDir = path.join(root, "data");
-const uploadDir = path.join(root, "uploads");
+const isVercel = Boolean(process.env.VERCEL);
+const bundledDataDir = path.join(root, "data");
+const runtimeRoot = isVercel ? path.join(os.tmpdir(), "ai-blog-generator") : root;
+const dataDir = isVercel ? path.join(runtimeRoot, "data") : bundledDataDir;
+const uploadDir = isVercel ? path.join(runtimeRoot, "uploads") : path.join(root, "uploads");
 const imageDbPath = path.join(dataDir, "image-library.json");
 const reviewDbPath = path.join(dataDir, "review-drafts.json");
 const publishedDbPath = path.join(dataDir, "published-posts.json");
@@ -72,11 +75,22 @@ const BANNED_BLOG_HEADINGS = new Set([
   "author box"
 ]);
 
+function ensureRuntimeJsonFile(filename) {
+  const targetPath = path.join(dataDir, filename);
+  const bundledPath = path.join(bundledDataDir, filename);
+  if (fs.existsSync(targetPath)) return;
+  if (isVercel && fs.existsSync(bundledPath)) {
+    fs.copyFileSync(bundledPath, targetPath);
+    return;
+  }
+  fs.writeFileSync(targetPath, "[]", "utf8");
+}
+
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(uploadDir, { recursive: true });
-if (!fs.existsSync(imageDbPath)) fs.writeFileSync(imageDbPath, "[]", "utf8");
-if (!fs.existsSync(reviewDbPath)) fs.writeFileSync(reviewDbPath, "[]", "utf8");
-if (!fs.existsSync(publishedDbPath)) fs.writeFileSync(publishedDbPath, "[]", "utf8");
+ensureRuntimeJsonFile("image-library.json");
+ensureRuntimeJsonFile("review-drafts.json");
+ensureRuntimeJsonFile("published-posts.json");
 
 function sendJson(res, status, payload) {
   res.writeHead(status, {
@@ -605,6 +619,12 @@ function selectLibraryImages(brief, sections) {
 
 function safeStaticPath(urlPath) {
   const cleanPath = decodeURIComponent(urlPath.split("?")[0]);
+  if (cleanPath.startsWith("/uploads/")) {
+    const uploadName = cleanPath.slice("/uploads/".length);
+    const resolvedUpload = path.resolve(uploadDir, uploadName);
+    if (!resolvedUpload.startsWith(uploadDir)) return null;
+    return resolvedUpload;
+  }
   const requested = cleanPath === "/" ? "/index.html" : cleanPath;
   const resolved = path.resolve(root, `.${requested}`);
   if (!resolved.startsWith(root)) return null;
@@ -1692,7 +1712,7 @@ function serveStatic(req, res) {
   });
 }
 
-const server = http.createServer((req, res) => {
+function requestHandler(req, res) {
   if (req.url.startsWith("/api/")) {
     handleApi(req, res);
     return;
@@ -1711,10 +1731,15 @@ const server = http.createServer((req, res) => {
     return;
   }
   serveStatic(req, res);
-});
+}
 
-server.listen(port, "127.0.0.1", () => {
-  fs.writeFileSync(path.join(root, "server.pid"), String(process.pid));
-  console.log(`AI Blog Generator running at http://127.0.0.1:${port}`);
-  console.log(process.env.GEMINI_API_KEY ? `Gemini mode enabled with ${model}` : "Gemini key not found; fallback mode enabled.");
-});
+if (require.main === module) {
+  const server = http.createServer(requestHandler);
+  server.listen(port, "127.0.0.1", () => {
+    fs.writeFileSync(path.join(root, "server.pid"), String(process.pid));
+    console.log(`AI Blog Generator running at http://127.0.0.1:${port}`);
+    console.log(process.env.GEMINI_API_KEY ? `Gemini mode enabled with ${model}` : "Gemini key not found; fallback mode enabled.");
+  });
+}
+
+module.exports = requestHandler;

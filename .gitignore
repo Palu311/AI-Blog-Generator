@@ -1,4 +1,5 @@
 server.log
+server.*.log
 server.pid
 codex-server*.log
 .env
