@@ -36,6 +36,10 @@ const port = Number(process.env.PORT || 5173);
 const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 const loginUsername = process.env.LOGIN_USERNAME || "admin";
 const loginPassword = process.env.LOGIN_PASSWORD || "admin123";
+const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const supabaseStorageBucket = process.env.SUPABASE_STORAGE_BUCKET || "blog-images";
+const useSupabase = Boolean(supabaseUrl && supabaseServiceKey);
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -123,7 +127,11 @@ function readBody(req) {
   });
 }
 
-function readImageDb() {
+async function readImageDb() {
+  if (useSupabase) {
+    const rows = await supabaseRequest("/rest/v1/image_library?select=*&order=created_at.desc");
+    return rows.map(imageFromRow);
+  }
   try {
     return JSON.parse(fs.readFileSync(imageDbPath, "utf8"));
   } catch {
@@ -142,6 +150,139 @@ function readJsonArray(filePath) {
 
 function writeJsonArray(filePath, items) {
   fs.writeFileSync(filePath, JSON.stringify(items, null, 2), "utf8");
+}
+
+async function supabaseRequest(pathname, options = {}) {
+  if (!useSupabase) throw new Error("Supabase is not configured.");
+  const response = await fetch(`${supabaseUrl}${pathname}`, {
+    method: options.method || "GET",
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body)
+  });
+  const text = await response.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { message: text };
+  }
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `Supabase request failed with ${response.status}`);
+  }
+  return data;
+}
+
+function reviewFromRow(row) {
+  return {
+    id: row.id,
+    token: row.token,
+    slug: row.slug,
+    title: row.title,
+    status: row.status,
+    packageData: row.package_data || {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    reviewUrl: row.review_url || "",
+    publishedUrl: row.published_url || ""
+  };
+}
+
+function reviewToRow(review) {
+  return {
+    id: review.id,
+    token: review.token,
+    slug: review.slug,
+    title: review.title,
+    status: review.status,
+    package_data: review.packageData || {},
+    created_at: review.createdAt,
+    updated_at: review.updatedAt,
+    review_url: review.reviewUrl || "",
+    published_url: review.publishedUrl || ""
+  };
+}
+
+function postFromRow(row) {
+  return {
+    id: row.id,
+    reviewId: row.review_id,
+    slug: row.slug,
+    title: row.title,
+    markdown: row.markdown || "",
+    html: row.html || "",
+    meta: row.meta || {},
+    imageAssets: row.image_assets || [],
+    publishedAt: row.published_at,
+    url: row.url || ""
+  };
+}
+
+function postToRow(post) {
+  return {
+    id: post.id,
+    review_id: post.reviewId || null,
+    slug: post.slug,
+    title: post.title,
+    markdown: post.markdown || "",
+    html: post.html || "",
+    meta: post.meta || {},
+    image_assets: post.imageAssets || [],
+    published_at: post.publishedAt,
+    url: post.url || ""
+  };
+}
+
+function imageFromRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    filename: row.filename,
+    url: row.url,
+    mime: row.mime || "",
+    size: row.size || 0,
+    category: row.category || "Uncategorized",
+    altText: row.alt_text || "",
+    description: row.description || "",
+    seoTitle: row.seo_title || "",
+    credits: row.credits || "",
+    aspectRatio: row.aspect_ratio || "responsive",
+    tags: row.tags || [],
+    keywords: row.keywords || [],
+    source: row.source || "",
+    featured: Boolean(row.featured),
+    uploadDate: row.upload_date || row.created_at,
+    lastModified: row.last_modified || row.created_at,
+    usageCount: row.usage_count || 0
+  };
+}
+
+function imageToRow(image) {
+  return {
+    id: image.id,
+    name: image.name,
+    filename: image.filename,
+    url: image.url,
+    mime: image.mime || "",
+    size: image.size || 0,
+    category: image.category || "Uncategorized",
+    alt_text: image.altText || "",
+    description: image.description || "",
+    seo_title: image.seoTitle || "",
+    credits: image.credits || "",
+    aspect_ratio: image.aspectRatio || "responsive",
+    tags: image.tags || [],
+    keywords: image.keywords || [],
+    source: image.source || "",
+    featured: Boolean(image.featured),
+    upload_date: image.uploadDate || new Date().toISOString(),
+    last_modified: image.lastModified || new Date().toISOString(),
+    usage_count: image.usageCount || 0
+  };
 }
 
 function escapeHtml(value) {
@@ -253,7 +394,16 @@ function markdownToHtml(markdown) {
   return html;
 }
 
-function writeImageDb(images) {
+async function writeImageDb(images) {
+  if (useSupabase) {
+    if (!images.length) return;
+    await supabaseRequest("/rest/v1/image_library?on_conflict=id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates" },
+      body: images.map(imageToRow)
+    });
+    return;
+  }
   fs.writeFileSync(imageDbPath, JSON.stringify(images, null, 2), "utf8");
 }
 
@@ -313,7 +463,7 @@ function sendReviewEmail(review, reviewUrl) {
   });
 }
 
-function createReviewDraft(req, packageData) {
+async function createReviewDraft(req, packageData) {
   const now = new Date().toISOString();
   const slug = slugify(packageData.meta?.slug || packageData.title || packageData.meta?.chosenTitle || "blog-post");
   const review = {
@@ -329,14 +479,45 @@ function createReviewDraft(req, packageData) {
     publishedUrl: ""
   };
   review.reviewUrl = `${publicBaseUrl(req)}/review/${review.token}`;
+  if (useSupabase) {
+    const rows = await supabaseRequest("/rest/v1/review_drafts", {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: reviewToRow(review)
+    });
+    return reviewFromRow(rows[0]);
+  }
   const reviews = readJsonArray(reviewDbPath);
   writeJsonArray(reviewDbPath, [review, ...reviews]);
   return review;
 }
 
-function publishReview(req, review) {
+async function getReviewByToken(token) {
+  if (useSupabase) {
+    const rows = await supabaseRequest(`/rest/v1/review_drafts?token=eq.${encodeURIComponent(token)}&select=*&limit=1`);
+    return rows[0] ? reviewFromRow(rows[0]) : null;
+  }
+  return readJsonArray(reviewDbPath).find((item) => item.token === token) || null;
+}
+
+async function getPublishedPosts() {
+  if (useSupabase) {
+    const rows = await supabaseRequest("/rest/v1/published_posts?select=*&order=published_at.desc");
+    return rows.map(postFromRow);
+  }
+  return readJsonArray(publishedDbPath);
+}
+
+async function getPublishedPostBySlug(slug) {
+  if (useSupabase) {
+    const rows = await supabaseRequest(`/rest/v1/published_posts?slug=eq.${encodeURIComponent(slug)}&select=*&limit=1`);
+    return rows[0] ? postFromRow(rows[0]) : null;
+  }
+  return readJsonArray(publishedDbPath).find((item) => item.slug === slug) || null;
+}
+
+async function publishReview(req, review) {
   const now = new Date().toISOString();
-  const publishedPosts = readJsonArray(publishedDbPath);
   const slug = slugify(review.slug || review.title);
   const published = {
     id: createId("post"),
@@ -350,6 +531,24 @@ function publishReview(req, review) {
     publishedAt: now,
     url: `${publicBaseUrl(req)}/blog/${slug}`
   };
+  if (useSupabase) {
+    await supabaseRequest("/rest/v1/published_posts?on_conflict=slug", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates" },
+      body: postToRow(published)
+    });
+    await supabaseRequest(`/rest/v1/review_drafts?token=eq.${encodeURIComponent(review.token)}`, {
+      method: "PATCH",
+      body: {
+        status: "published",
+        published_url: published.url,
+        updated_at: now
+      }
+    });
+    return published;
+  }
+
+  const publishedPosts = readJsonArray(publishedDbPath);
   const nextPosts = [published, ...publishedPosts.filter((post) => post.slug !== slug)];
   writeJsonArray(publishedDbPath, nextPosts);
 
@@ -396,8 +595,8 @@ function renderPageShell(title, body) {
 </html>`;
 }
 
-function renderReviewPage(req, res, token) {
-  const review = readJsonArray(reviewDbPath).find((item) => item.token === token);
+async function renderReviewPage(req, res, token) {
+  const review = await getReviewByToken(token);
   if (!review) {
     sendHtml(res, 404, renderPageShell("Review not found", "<main><h1>Review not found</h1></main>"));
     return;
@@ -428,14 +627,14 @@ function renderReviewPage(req, res, token) {
   `));
 }
 
-function renderBlogList(req, res) {
-  const posts = readJsonArray(publishedDbPath);
+async function renderBlogList(req, res) {
+  const posts = await getPublishedPosts();
   const items = posts.map((post) => `<li><a href="/blog/${post.slug}">${escapeHtml(post.title)}</a><br><small>${escapeHtml(new Date(post.publishedAt).toLocaleString())}</small></li>`).join("");
   sendHtml(res, 200, renderPageShell("Published Blogs", `<header><div class="bar"><strong>Published Blogs</strong><a href="/">Back to Studio</a></div></header><main><h1>Published Blogs</h1><ul>${items || "<li>No published blogs yet.</li>"}</ul></main>`));
 }
 
-function renderPublishedBlog(req, res, slug) {
-  const post = readJsonArray(publishedDbPath).find((item) => item.slug === slug);
+async function renderPublishedBlog(req, res, slug) {
+  const post = await getPublishedPostBySlug(slug);
   if (!post) {
     sendHtml(res, 404, renderPageShell("Blog not found", "<main><h1>Blog not found</h1></main>"));
     return;
@@ -551,7 +750,7 @@ function fetchCompanyWebsiteContextWithPowerShell(url) {
   });
 }
 
-function saveDataUrlImage(item) {
+async function saveDataUrlImage(item) {
   const match = String(item.dataUrl || "").match(/^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/);
   if (!match) throw new Error("Only PNG, JPG, WEBP, and GIF uploads are allowed.");
   const mime = match[1];
@@ -561,6 +760,29 @@ function saveDataUrlImage(item) {
   const filename = `${safeBase}-${id}${extension}`;
   const bytes = Buffer.from(match[2], "base64");
   if (bytes.length > 12_000_000) throw new Error("Image is too large. Use files under 12MB.");
+  if (useSupabase) {
+    const uploadResponse = await fetch(`${supabaseUrl}/storage/v1/object/${supabaseStorageBucket}/${encodeURIComponent(filename)}`, {
+      method: "POST",
+      headers: {
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+        "Content-Type": mime,
+        "x-upsert": "false"
+      },
+      body: bytes
+    });
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(errorText || `Supabase image upload failed with ${uploadResponse.status}`);
+    }
+    return {
+      id,
+      filename,
+      mime,
+      size: bytes.length,
+      url: `${supabaseUrl}/storage/v1/object/public/${supabaseStorageBucket}/${encodeURIComponent(filename)}`
+    };
+  }
   fs.writeFileSync(path.join(uploadDir, filename), bytes);
   return { id, filename, mime, size: bytes.length, url: imageUrl(filename) };
 }
@@ -586,8 +808,8 @@ function scoreImageForBrief(image, brief, sectionHeading = "") {
   return needles.reduce((score, word) => score + (haystack.includes(word) ? 1 : 0), 0);
 }
 
-function selectLibraryImages(brief, sections) {
-  const images = readImageDb();
+async function selectLibraryImages(brief, sections) {
+  const images = await readImageDb();
   if (!images.length) return [];
   const used = new Set();
   return ["Hero Section", "Introduction", ...sections.map((section) => section.heading), "Conclusion"]
@@ -779,7 +1001,7 @@ function inferPrimaryKeyword(brief) {
     .join(" ");
 }
 
-function buildFallbackPackage(brief, reason) {
+async function buildFallbackPackage(brief, reason) {
   const topic = sentenceCase(brief.topic);
   const keyword = inferPrimaryKeyword(brief);
   const slug = slugify(`${keyword} guide`);
@@ -881,7 +1103,7 @@ function buildFallbackPackage(brief, reason) {
       body: `${sentenceCase(keyword)} becomes easier to understand when the explanation is practical, careful, and grounded in the reader's real situation. The important thing is not only knowing the headline benefit, but also knowing the conditions, limits, examples, and exceptions.\n\nIf this topic affects a financial, legal, medical, or time-sensitive decision, readers should verify the current rules from an official source or a qualified professional before acting.`
     }
   ];
-  const libraryImages = selectLibraryImages(brief, sections);
+  const libraryImages = await selectLibraryImages(brief, sections);
   if (libraryImages.length) imageAssets = [...libraryImages, ...imageAssets].slice(0, 10);
   const articleSections = sections.filter((section) => !isBannedBlogHeading(section.heading));
   const sectionMarkdown = articleSections.map((section, index) => {
@@ -1280,8 +1502,8 @@ When live facts are needed but not provided, explain the concept accurately and 
   return extractJson(extractGeminiText(data) || "");
 }
 
-function applyGeminiEnhancement(brief, enhancement, usedModel, reason) {
-  const packageData = buildFallbackPackage(brief, reason);
+async function applyGeminiEnhancement(brief, enhancement, usedModel, reason) {
+  const packageData = await buildFallbackPackage(brief, reason);
   const requestedTitle = sentenceCase(brief.topic);
   const finalTitle = requestedTitle || enhancement.title || packageData.title;
   if (finalTitle) {
@@ -1376,7 +1598,7 @@ async function callGemini(brief) {
       ok: true,
       fallback: true,
       message: "GEMINI_API_KEY is not set. Local fallback package generated.",
-      packageData: buildFallbackPackage(brief, "GEMINI_API_KEY is not set")
+      packageData: await buildFallbackPackage(brief, "GEMINI_API_KEY is not set")
     };
   }
 
@@ -1388,7 +1610,7 @@ async function callGemini(brief) {
   for (const modelName of modelQueue) {
     try {
       const enhancement = await requestGeminiEnhancement(brief, modelName);
-      packageData = applyGeminiEnhancement(brief, enhancement, modelName, "compact editorial generation");
+      packageData = await applyGeminiEnhancement(brief, enhancement, modelName, "compact editorial generation");
       usedModel = modelName;
       break;
     } catch (error) {
@@ -1410,7 +1632,7 @@ async function callGemini(brief) {
     for (const modelName of modelQueue) {
       try {
         const enhancement = await requestGeminiEnhancement(brief, modelName);
-        packageData = applyGeminiEnhancement(
+        packageData = await applyGeminiEnhancement(
           brief,
           enhancement,
           modelName,
@@ -1424,7 +1646,7 @@ async function callGemini(brief) {
   }
 
   if (!packageData) {
-    packageData = buildFallbackPackage(brief, lastError?.message || "Gemini generation failed");
+    packageData = await buildFallbackPackage(brief, lastError?.message || "Gemini generation failed");
     packageData.fallback = true;
   }
   packageData.brief = brief;
@@ -1490,7 +1712,7 @@ async function handleApi(req, res) {
         ok: true,
         fallback: true,
         message: error.message || "AI generation failed. Local fallback package generated.",
-        packageData: buildFallbackPackage(await enrichBrief(payload.brief), error.message || "AI generation failed")
+        packageData: await buildFallbackPackage(await enrichBrief(payload.brief), error.message || "AI generation failed")
       });
     }
     return;
@@ -1544,7 +1766,7 @@ async function handleApi(req, res) {
         sendJson(res, 400, { ok: false, message: "Generated blog package is required." });
         return;
       }
-      const review = createReviewDraft(req, payload.packageData);
+      const review = await createReviewDraft(req, payload.packageData);
       const email = await sendReviewEmail(review, review.reviewUrl);
       sendJson(res, 201, {
         ok: true,
@@ -1562,23 +1784,23 @@ async function handleApi(req, res) {
 
   if (req.url.match(/^\/api\/reviews\/[^/]+\/publish$/) && req.method === "POST") {
     const token = req.url.split("/")[3];
-    const review = readJsonArray(reviewDbPath).find((item) => item.token === token);
+    const review = await getReviewByToken(token);
     if (!review) {
       sendJson(res, 404, { ok: false, message: "Review draft not found." });
       return;
     }
-    const published = publishReview(req, review);
+    const published = await publishReview(req, review);
     sendJson(res, 200, { ok: true, publishedUrl: published.url, slug: published.slug });
     return;
   }
 
   if (req.url === "/api/published" && req.method === "GET") {
-    sendJson(res, 200, { ok: true, posts: readJsonArray(publishedDbPath) });
+    sendJson(res, 200, { ok: true, posts: await getPublishedPosts() });
     return;
   }
 
   if (req.url === "/api/images" && req.method === "GET") {
-    sendJson(res, 200, { ok: true, images: readImageDb() });
+    sendJson(res, 200, { ok: true, images: await readImageDb() });
     return;
   }
 
@@ -1587,11 +1809,12 @@ async function handleApi(req, res) {
       const body = await readBody(req);
       const payload = JSON.parse(body || "{}");
       const uploads = Array.isArray(payload.images) ? payload.images : [];
-      const db = readImageDb();
+      const db = await readImageDb();
       const now = new Date().toISOString();
-      const saved = uploads.map((item) => {
-        const file = saveDataUrlImage(item);
-        return {
+      const saved = [];
+      for (const item of uploads) {
+        const file = await saveDataUrlImage(item);
+        saved.push({
           ...file,
           name: item.name || file.filename,
           category: item.category || "Uncategorized",
@@ -1606,9 +1829,9 @@ async function handleApi(req, res) {
           uploadDate: now,
           lastModified: now,
           usageCount: 0
-        };
-      });
-      writeImageDb([...saved, ...db]);
+        });
+      }
+      await writeImageDb([...saved, ...db]);
       sendJson(res, 201, { ok: true, images: saved });
     } catch (error) {
       sendJson(res, 400, { ok: false, message: error.message });
@@ -1618,7 +1841,7 @@ async function handleApi(req, res) {
 
   if (req.url.startsWith("/api/images/")) {
     const imageId = req.url.split("/").pop();
-    const db = readImageDb();
+    const db = await readImageDb();
     const index = db.findIndex((image) => image.id === imageId);
     if (index === -1) {
       sendJson(res, 404, { ok: false, message: "Image not found." });
@@ -1634,7 +1857,7 @@ async function handleApi(req, res) {
         keywords: payload.keywords === undefined ? db[index].keywords : normalizeTags(payload.keywords),
         lastModified: new Date().toISOString()
       };
-      writeImageDb(db);
+      await writeImageDb(db);
       sendJson(res, 200, { ok: true, image: db[index] });
       return;
     }
@@ -1643,7 +1866,11 @@ async function handleApi(req, res) {
       try {
         fs.rmSync(path.join(uploadDir, removed.filename), { force: true });
       } catch {}
-      writeImageDb(db);
+      if (useSupabase) {
+        await supabaseRequest(`/rest/v1/image_library?id=eq.${encodeURIComponent(removed.id)}`, { method: "DELETE" });
+      } else {
+        writeJsonArray(imageDbPath, db);
+      }
       sendJson(res, 200, { ok: true });
       return;
     }
@@ -1712,22 +1939,22 @@ function serveStatic(req, res) {
   });
 }
 
-function requestHandler(req, res) {
+async function requestHandler(req, res) {
   if (req.url.startsWith("/api/")) {
-    handleApi(req, res);
+    await handleApi(req, res);
     return;
   }
   const url = new URL(req.url, `http://${req.headers.host || `127.0.0.1:${port}`}`);
   if (url.pathname.startsWith("/review/")) {
-    renderReviewPage(req, res, decodeURIComponent(url.pathname.split("/").pop()));
+    await renderReviewPage(req, res, decodeURIComponent(url.pathname.split("/").pop()));
     return;
   }
   if (url.pathname === "/blog") {
-    renderBlogList(req, res);
+    await renderBlogList(req, res);
     return;
   }
   if (url.pathname.startsWith("/blog/")) {
-    renderPublishedBlog(req, res, decodeURIComponent(url.pathname.split("/").pop()));
+    await renderPublishedBlog(req, res, decodeURIComponent(url.pathname.split("/").pop()));
     return;
   }
   serveStatic(req, res);
