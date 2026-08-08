@@ -22,8 +22,16 @@ const adminImageGrid = document.querySelector("#adminImageGrid");
 const libraryStatus = document.querySelector("#libraryStatus");
 const imageSearch = document.querySelector("#imageSearch");
 const imageCategoryFilter = document.querySelector("#imageCategoryFilter");
+const loginScreen = document.querySelector("#loginScreen");
+const loginForm = document.querySelector("#loginForm");
+const loginStatus = document.querySelector("#loginStatus");
+const loginUsername = document.querySelector("#loginUsername");
+const loginPassword = document.querySelector("#loginPassword");
+const togglePassword = document.querySelector("#togglePassword");
+const logoutBtn = document.querySelector("#logoutBtn");
 
 const STORAGE_KEY = "editorial-ai-blog-engine-draft";
+const AUTH_KEY = "editorial-ai-blog-engine-auth";
 const IMAGE_CATEGORIES = [
   "Technology", "Business", "Marketing", "Finance", "Health", "Medical", "Fitness", "Real Estate",
   "Education", "Travel", "Food", "Automobile", "Artificial Intelligence", "Software", "Programming",
@@ -85,6 +93,99 @@ function getField(id) {
 
 function setField(id, value) {
   document.querySelector(`#${id}`).value = value || "";
+}
+
+function setLoginLocked(locked) {
+  if (!loginScreen) return;
+  document.body.classList.toggle("auth-locked", locked);
+  loginScreen.hidden = !locked;
+  if (locked) window.setTimeout(() => loginUsername?.focus(), 0);
+}
+
+async function initializeLogin() {
+  if (!loginScreen || !loginForm) return;
+  setLoginLocked(true);
+  if (sessionStorage.getItem(AUTH_KEY) === "ok") {
+    setLoginLocked(false);
+    return;
+  }
+  try {
+    const response = await fetch("/api/login-config", { cache: "no-store" });
+    const data = await response.json();
+    if (!data.loginRequired) {
+      sessionStorage.setItem(AUTH_KEY, "ok");
+      setLoginLocked(false);
+    }
+  } catch {
+    if (loginStatus) {
+      loginStatus.textContent = "Login server not ready.";
+      loginStatus.className = "login-status error";
+    }
+  }
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  if (!loginForm) return;
+  const button = loginForm.querySelector("button[type='submit']");
+  button.disabled = true;
+  button.textContent = "Checking...";
+  if (loginStatus) {
+    loginStatus.textContent = "";
+    loginStatus.className = "login-status";
+  }
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: loginUsername?.value || "",
+        password: loginPassword?.value || ""
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.message || "Login failed.");
+    sessionStorage.setItem(AUTH_KEY, "ok");
+    loginPassword.value = "";
+    if (loginStatus) {
+      loginStatus.textContent = "Login successful.";
+      loginStatus.className = "login-status success";
+    }
+    setLoginLocked(false);
+  } catch (error) {
+    if (loginStatus) {
+      loginStatus.textContent = error.message || "Invalid login.";
+      loginStatus.className = "login-status error";
+    }
+  } finally {
+    button.disabled = false;
+    button.textContent = "Login";
+  }
+}
+
+function handleLogout() {
+  sessionStorage.removeItem(AUTH_KEY);
+  if (loginForm) loginForm.reset();
+  if (loginPassword && togglePassword) {
+    loginPassword.type = "password";
+    togglePassword.classList.remove("is-visible");
+    togglePassword.setAttribute("aria-label", "Show password");
+    togglePassword.setAttribute("aria-pressed", "false");
+  }
+  if (loginStatus) {
+    loginStatus.textContent = "Logged out.";
+    loginStatus.className = "login-status";
+  }
+  setLoginLocked(true);
+}
+
+function handlePasswordToggle() {
+  if (!loginPassword || !togglePassword) return;
+  const isVisible = loginPassword.type === "text";
+  loginPassword.type = isVisible ? "password" : "text";
+  togglePassword.classList.toggle("is-visible", !isVisible);
+  togglePassword.setAttribute("aria-label", isVisible ? "Show password" : "Hide password");
+  togglePassword.setAttribute("aria-pressed", String(!isVisible));
 }
 
 function sentenceCase(value) {
@@ -1266,10 +1367,20 @@ function restoreDraft() {
   }
 }
 
+function startNewDraftOnLoad() {
+  localStorage.removeItem(STORAGE_KEY);
+  currentPackage = null;
+  if (autosaveStatus) autosaveStatus.textContent = "New draft";
+}
+
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   generate();
 });
+
+loginForm?.addEventListener("submit", handleLogin);
+logoutBtn?.addEventListener("click", handleLogout);
+togglePassword?.addEventListener("click", handlePasswordToggle);
 
 form.addEventListener("input", () => {
   window.clearTimeout(form.saveTimer);
@@ -1583,7 +1694,8 @@ if (adminImageGrid) {
   });
 }
 
-restoreDraft();
+startNewDraftOnLoad();
+initializeLogin();
 checkServerEngine();
 populateCategoryFilter();
 loadImageLibrary();

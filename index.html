@@ -8,6 +8,38 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
+    <section id="loginScreen" class="login-screen" aria-label="Tool login">
+      <form id="loginForm" class="login-card">
+        <p class="eyebrow">Secure Access</p>
+        <h1>AI Blog Publishing Studio</h1>
+        <p class="login-copy">Login required before using the blog generation tool.</p>
+        <label>
+          <span>Username</span>
+          <input id="loginUsername" autocomplete="username" required placeholder="Username">
+        </label>
+        <label>
+          <span>Password</span>
+          <div class="password-field">
+            <input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Password">
+            <button id="togglePassword" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false">
+              <svg class="eye-icon eye-show" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg class="eye-icon eye-hide" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 3l18 18"></path>
+                <path d="M10.6 5.2A10.7 10.7 0 0 1 12 5c6 0 9.5 7 9.5 7a17.8 17.8 0 0 1-3 3.8"></path>
+                <path d="M6.6 6.8C3.9 8.7 2.5 12 2.5 12s3.5 7 9.5 7a10.2 10.2 0 0 0 4.1-.9"></path>
+                <path d="M9.9 9.9A3 3 0 0 0 14.1 14"></path>
+              </svg>
+            </button>
+          </div>
+        </label>
+        <button class="primary" type="submit">Login</button>
+        <p id="loginStatus" class="login-status" role="status"></p>
+      </form>
+    </section>
+
     <main class="app-shell">
       <header class="topbar" aria-label="Application header">
         <div>
@@ -18,6 +50,7 @@
           <span id="autosaveStatus" class="save-status">Draft saved locally</span>
           <button type="button" id="publishedBlogsBtn">Published Blogs</button>
           <button type="button" id="newDraftBtn">New Draft</button>
+          <button type="button" id="logoutBtn">Logout</button>
         </div>
       </header>
 

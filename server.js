@@ -31,6 +31,8 @@ loadEnvFile();
 
 const port = Number(process.env.PORT || 5173);
 const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const loginUsername = process.env.LOGIN_USERNAME || "admin";
+const loginPassword = process.env.LOGIN_PASSWORD || "admin123";
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -1429,6 +1431,27 @@ async function handleApi(req, res) {
       model,
       time: new Date().toISOString()
     });
+    return;
+  }
+
+  if (req.url === "/api/login-config" && req.method === "GET") {
+    sendJson(res, 200, { ok: true, loginRequired: true });
+    return;
+  }
+
+  if (req.url === "/api/login" && req.method === "POST") {
+    try {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}");
+      const valid = String(payload.username || "") === loginUsername && String(payload.password || "") === loginPassword;
+      if (!valid) {
+        sendJson(res, 401, { ok: false, message: "Invalid username or password." });
+        return;
+      }
+      sendJson(res, 200, { ok: true, message: "Login successful." });
+    } catch (error) {
+      sendJson(res, 400, { ok: false, message: "Login failed." });
+    }
     return;
   }
 

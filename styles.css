@@ -36,6 +36,66 @@ body {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+body.auth-locked {
+  overflow: hidden;
+}
+
+body.auth-locked .app-shell {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.13), transparent 38%),
+    linear-gradient(315deg, rgba(245, 124, 0, 0.12), transparent 42%),
+    #f6f7f9;
+}
+
+.login-screen[hidden] {
+  display: none;
+}
+
+.login-card {
+  display: grid;
+  width: min(440px, 100%);
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(20, 32, 51, 0.16);
+  padding: 28px;
+}
+
+.login-card h1 {
+  font-size: 1.8rem;
+}
+
+.login-copy,
+.login-status {
+  margin: 0;
+  color: var(--muted);
+}
+
+.login-status {
+  min-height: 22px;
+  font-weight: 800;
+}
+
+.login-status.error {
+  color: #b42318;
+}
+
+.login-status.success {
+  color: var(--teal);
+}
+
 button,
 input,
 select,
@@ -115,6 +175,61 @@ select:focus,
 textarea:focus {
   border-color: var(--teal);
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 52px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #475467;
+  padding: 0;
+}
+
+.password-toggle:hover:not(:disabled),
+.password-toggle:focus-visible {
+  background: rgba(15, 118, 110, 0.09);
+  color: var(--teal);
+  outline: none;
+}
+
+.eye-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.15;
+}
+
+.password-toggle .eye-hide {
+  display: none;
+}
+
+.password-toggle.is-visible .eye-show {
+  display: none;
+}
+
+.password-toggle.is-visible .eye-hide {
+  display: block;
 }
 
 label {
