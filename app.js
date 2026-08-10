@@ -1267,55 +1267,20 @@ function buildChatGptImagePrompt(asset, index) {
   const country = currentPackage?.brief?.country || "";
   const placement = asset.placement || (imageNumber === 1 ? "Hero Section" : "Blog Section");
   const aspectRatio = asset.aspectRatio || (imageNumber === 1 ? "16:9" : "4:3");
-  const sectionPurpose = asset.purpose || `visual support for ${placement}`;
-  const brandContext = [
-    currentPackage?.brief?.brand ? `Brand/context: ${currentPackage.brief.brand}` : "",
-    currentPackage?.brief?.companyWebsite ? `Company website context: ${currentPackage.brief.companyWebsite}` : ""
-  ].filter(Boolean).join("\n");
-  return `MASTER IMAGE PROMPT FOR CHATGPT
+  const locationText = country ? ` in ${country}` : "";
+  const scene = asset.prompt || `a realistic editorial scene that clearly represents "${title}" for ${audience}`;
+  const avoid = asset.negativePrompt || "text, watermark, logo, blurry image, distorted hands, fake UI, spelling, cartoon style, unrealistic objects";
+  return `Please generate this image now: a photorealistic editorial blog image for the article titled "${title}".
 
-Create a NEW image from scratch. Do not edit or use any existing image. No reference image is required.
+The image must visually match this exact title and topic: ${keyword}. It is for the ${placement} of the blog, in ${aspectRatio} aspect ratio, for ${audience}${locationText}.
 
-Generate image ${imageNumber} for this blog article:
-Title: ${title}
-Main topic/keyword: ${keyword}
-Placement: ${placement}
-Purpose: ${sectionPurpose}
-Aspect ratio: ${aspectRatio}
-Audience: ${audience}
-${country ? `Location/context: ${country}` : ""}
-${brandContext}
+Scene to create: ${scene}
 
-Title-based image concept:
-Create a realistic editorial blog image that visually represents "${title}". The image should immediately feel connected to this exact blog title, not a generic business/technology image.
+Make it look like a premium website/blog image: realistic people or objects only if they fit the title, natural lighting, clean professional composition, sharp details, modern editorial style, trustworthy and high quality.
 
-Main scene:
-${asset.prompt || `A professional, realistic editorial scene showing the core idea of "${title}" through relevant people, objects, environment, and visual context.`}
+Do not include any readable text, captions, words, signs, UI text, logos, watermark, or spelling inside the image. Avoid ${avoid}.
 
-Composition:
-- Clear main subject connected to the blog title.
-- Background should support the topic without becoming busy.
-- Use realistic objects, locations, documents, screens, homes, workplaces, tools, or people only if they make sense for "${title}".
-- For hero images, make it wide, clean, premium, and suitable for a blog header.
-- For section images, focus on the specific placement: ${placement}.
-
-Style:
-Photorealistic, realistic editorial blog image, premium website quality, natural lighting, sharp details, clean composition, professional, trustworthy, modern, high-resolution.
-
-Avoid:
-${asset.negativePrompt || "text, watermark, logo, blurry image, distorted hands, fake UI, spelling, cartoon style, unrealistic objects"}
-
-Important:
-- Generate only one new image.
-- Do not ask for an existing image.
-- Do not create text inside the image.
-- Do not show readable words, labels, signage, UI copy, or logos.
-- Do not make a generic stock photo. It must match the title: "${title}".
-- Do not add explanation after generating.
-
-Alt text for context only: ${asset.altText}
-Caption for context only: ${asset.caption}
-Suggested filename: ${asset.filename}`;
+Create one new image from scratch. No existing/reference image is needed.`;
 }
 
 function buildSeoSummary(packageData) {
