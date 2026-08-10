@@ -30,6 +30,9 @@ const loginPassword = document.querySelector("#loginPassword");
 const togglePassword = document.querySelector("#togglePassword");
 const logoutBtn = document.querySelector("#logoutBtn");
 const adminBtn = document.querySelector("#adminBtn");
+const adminPanel = document.querySelector("#adminPanel");
+const adminOverlay = document.querySelector("#adminOverlay");
+const closeAdminBtn = document.querySelector("#closeAdminBtn");
 const topicInput = document.querySelector("#topic");
 const detailsInput = document.querySelector("#details");
 const titleSuggestions = document.querySelector("#titleSuggestions");
@@ -196,6 +199,24 @@ function handlePasswordToggle() {
   togglePassword.classList.toggle("is-visible", !isVisible);
   togglePassword.setAttribute("aria-label", isVisible ? "Show password" : "Hide password");
   togglePassword.setAttribute("aria-pressed", String(!isVisible));
+}
+
+async function openAdminPanel() {
+  if (!adminPanel || !adminOverlay) return;
+  adminOverlay.hidden = false;
+  adminPanel.classList.add("open");
+  adminPanel.setAttribute("aria-hidden", "false");
+  document.body.classList.add("admin-open");
+  await loadAdminData();
+  window.setTimeout(() => closeAdminBtn?.focus(), 0);
+}
+
+function closeAdminPanel() {
+  if (!adminPanel || !adminOverlay) return;
+  adminPanel.classList.remove("open");
+  adminPanel.setAttribute("aria-hidden", "true");
+  adminOverlay.hidden = true;
+  document.body.classList.remove("admin-open");
 }
 
 function sentenceCase(value) {
@@ -1550,9 +1571,11 @@ document.querySelector("#newDraftBtn").addEventListener("click", () => {
   showToast("New draft started.");
 });
 
-adminBtn?.addEventListener("click", async () => {
-  document.querySelector(".admin-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  await loadAdminData();
+adminBtn?.addEventListener("click", openAdminPanel);
+closeAdminBtn?.addEventListener("click", closeAdminPanel);
+adminOverlay?.addEventListener("click", closeAdminPanel);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeAdminPanel();
 });
 
 document.querySelectorAll(".tab").forEach((tab) => {

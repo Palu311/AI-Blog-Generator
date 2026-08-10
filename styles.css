@@ -283,9 +283,40 @@ label span {
 }
 
 .admin-panel {
-  max-width: 1760px;
-  margin: 18px auto 0;
-  padding: 20px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 35;
+  width: min(720px, 100%);
+  height: 100vh;
+  overflow-y: auto;
+  border-radius: 0;
+  border-width: 0 0 0 1px;
+  background: #ffffff;
+  box-shadow: -24px 0 70px rgba(20, 32, 51, 0.18);
+  padding: 24px;
+  transform: translateX(100%);
+  visibility: hidden;
+}
+
+.admin-panel.open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.admin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 34;
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.admin-overlay[hidden] {
+  display: none;
+}
+
+body.admin-open {
+  overflow: hidden;
 }
 
 .admin-header,
@@ -301,6 +332,12 @@ label span {
 .admin-actions,
 .image-admin-form {
   justify-content: flex-start;
+}
+
+.admin-drawer-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .admin-actions input,
@@ -427,6 +464,10 @@ label span {
   .admin-row,
   .admin-log-row {
     grid-template-columns: 1fr;
+  }
+
+  .admin-panel {
+    width: 100%;
   }
 }
 

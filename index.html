@@ -250,13 +250,17 @@
 
       </section>
 
-      <section class="panel admin-panel" aria-label="Admin panel">
+      <div id="adminOverlay" class="admin-overlay" hidden></div>
+      <section id="adminPanel" class="panel admin-panel" aria-label="Admin panel" aria-hidden="true">
         <div class="admin-header">
           <div>
             <p class="eyebrow">Admin Panel</p>
             <h2>Users & Logs</h2>
           </div>
-          <button type="button" id="refreshAdminBtn">Refresh</button>
+          <div class="admin-drawer-actions">
+            <button type="button" id="refreshAdminBtn">Refresh</button>
+            <button type="button" id="closeAdminBtn" aria-label="Close admin panel">Close</button>
+          </div>
         </div>
         <div class="admin-tabs" role="tablist" aria-label="Admin tabs">
           <button class="admin-tab active" type="button" data-admin-tab="users">Users</button>
