@@ -1191,12 +1191,12 @@ function renderImageCard(asset, index) {
   const visual = asset.url
     ? `<img class="image-preview-photo" src="${escapeHtml(asset.url)}" alt="${escapeHtml(asset.altText || `Image ${index + 1}`)}">`
     : `<div class="image-placeholder">Image ${index + 1}</div>`;
-  return `<article class="image-card" data-image-index="${index}" tabindex="0" aria-label="Open master prompt for image ${index + 1}">
+  return `<article class="image-card" data-image-index="${index}" tabindex="0" aria-label="Open image prompt for image ${index + 1}">
     ${visual}
     <div class="image-card-body">
       <div class="image-card-title-row">
         <h3>${escapeHtml(asset.filename)}</h3>
-        <button class="copy-prompt-btn" type="button" title="Copy master prompt" aria-label="Copy master prompt">
+        <button class="copy-prompt-btn" type="button" title="Copy image prompt" aria-label="Copy image prompt">
           <span aria-hidden="true"></span>
         </button>
       </div>
@@ -1235,7 +1235,7 @@ function getImagePromptModal() {
     if (event.target.closest("[data-copy-modal-prompt]")) {
       const prompt = modal.querySelector(".image-prompt-full").textContent;
       await copyText(prompt);
-      showToast("Master prompt copied.");
+      showToast("Image prompt copied.");
     }
   });
   document.addEventListener("keydown", (event) => {
@@ -1262,45 +1262,38 @@ function closeImagePromptModal() {
 function buildChatGptImagePrompt(asset, index) {
   const imageNumber = index + 1;
   const title = currentPackage?.meta?.chosenTitle || currentPackage?.brief?.topic || "the blog post";
-  const articleSummary = currentPackage?.brief?.details || currentPackage?.analysis?.intent || "";
   const audience = currentPackage?.brief?.audience || "blog readers";
   const brandContext = [
     currentPackage?.brief?.brand ? `Brand/context: ${currentPackage.brief.brand}` : "",
     currentPackage?.brief?.companyWebsite ? `Company website context: ${currentPackage.brief.companyWebsite}` : ""
   ].filter(Boolean).join("\n");
-  return `MASTER PROMPT FOR CHATGPT IMAGE GENERATION
+  return `Create a NEW image from scratch. Do not edit or use any existing image. No reference image is required.
 
-Create one high-quality, publish-ready blog image for the article below. The image must look realistic, professional, and editorial, suitable for a premium blog/website.
-
-Article title: ${title}
-Image number: ${imageNumber}
+Generate image ${imageNumber} for this blog article:
+Title: ${title}
 Placement: ${asset.placement}
 Aspect ratio: ${asset.aspectRatio || "16:9"}
-Suggested filename: ${asset.filename}
-Target audience: ${audience}
+Audience: ${audience}
 ${brandContext}
 
-Article context:
-${articleSummary}
-
-Image concept:
+Image scene:
 ${asset.prompt}
 
-Composition and style requirements:
-- Photorealistic editorial image, not cartoon, not illustration.
-- Clear subject, clean background, natural lighting, sharp details, premium magazine quality.
-- Match the article topic, user intent, and the exact section placement.
-- Use realistic people/objects/locations only when they support the blog topic.
-- Keep the image useful for a published blog header or section image.
-- No visible text, no spelling, no watermark, no random logo, no fake brand names, no UI artifacts.
-- Avoid: ${asset.negativePrompt || "low quality, blurry details, distorted hands, extra text, watermark, logo, unrealistic objects"}
+Style:
+Photorealistic, realistic editorial blog image, premium website quality, natural lighting, sharp details, clean composition, professional and trustworthy. The image must clearly match the article title and placement.
 
-SEO details:
-Alt text: ${asset.altText}
-Caption: ${asset.caption}
+Avoid:
+${asset.negativePrompt || "text, watermark, logo, blurry image, distorted hands, fake UI, spelling, cartoon style, unrealistic objects"}
 
-Final output:
-Generate only the image. Do not include explanation or text overlay in the image.`;
+Important:
+- Generate only one new image.
+- Do not ask for an existing image.
+- Do not create text inside the image.
+- Do not add explanation after generating.
+
+Alt text for context only: ${asset.altText}
+Caption for context only: ${asset.caption}
+Suggested filename: ${asset.filename}`;
 }
 
 function buildSeoSummary(packageData) {
@@ -1613,7 +1606,7 @@ imageView?.addEventListener("click", async (event) => {
   if (!asset) return;
   if (event.target.closest(".copy-prompt-btn")) {
     await copyText(buildChatGptImagePrompt(asset, index));
-    showToast("Master prompt copied.");
+    showToast("Image prompt copied.");
     return;
   }
   openImagePromptModal(asset, index);
