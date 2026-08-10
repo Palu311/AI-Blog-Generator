@@ -69,11 +69,13 @@
               <span>Blog Title</span>
               <textarea id="topic" rows="4" required placeholder="Example: How small law firms can use AI intake without losing trust"></textarea>
             </label>
+            <div id="titleSuggestions" class="field-suggestions" aria-live="polite"></div>
 
             <label>
               <span>Blog Contain</span>
               <textarea id="details" rows="5" placeholder="Add facts, points, examples, audience notes, products, source notes, or ideas to include"></textarea>
             </label>
+            <button type="button" id="autoContainBtn">AI Auto Blog Contain</button>
 
             <label>
               <span>Company Website <small>(optional)</small></span>
@@ -106,6 +108,7 @@
                 <label>
                   <span>Writing Tone</span>
                   <select id="tone">
+                    <option value="">N/A</option>
                     <option>Professional, clear, human</option>
                     <option>Authoritative and editorial</option>
                     <option>Friendly and practical</option>
@@ -116,6 +119,7 @@
                 <label>
                   <span>Goal of Blog</span>
                   <select id="goal">
+                    <option value="">N/A</option>
                     <option>Educate and convert qualified leads</option>
                     <option>Build topical authority</option>
                     <option>Support product consideration</option>
@@ -138,6 +142,7 @@
                 <label>
                   <span>Blog Format</span>
                   <select id="blogFormat">
+                    <option value="">N/A</option>
                     <option>Magazine-style authority article</option>
                     <option>Personal story and ideas essay</option>
                     <option>How-to tutorial / walkthrough</option>
@@ -149,6 +154,7 @@
                 <label>
                   <span>Design Template</span>
                   <select id="designTemplate">
+                    <option value="">N/A</option>
                     <option>Clean editorial</option>
                     <option>Premium magazine</option>
                     <option>Creator blog</option>
@@ -159,6 +165,7 @@
                 <label>
                   <span>Monetization</span>
                   <select id="monetization">
+                    <option value="">None</option>
                     <option>None / educational</option>
                     <option>Ads and sponsorships</option>
                     <option>Affiliate recommendations</option>
@@ -170,6 +177,7 @@
                 <label>
                   <span>Distribution</span>
                   <select id="distribution">
+                    <option value="">N/A</option>
                     <option>Website blog and SEO</option>
                     <option>Newsletter and email campaign</option>
                     <option>Medium-style publication</option>
@@ -180,6 +188,7 @@
                 <label>
                   <span>Analytics Goal</span>
                   <select id="analyticsGoal">
+                    <option value="">N/A</option>
                     <option>Organic traffic and ranking</option>
                     <option>Audience growth and subscribers</option>
                     <option>Lead conversion</option>
@@ -197,7 +206,7 @@
             <div class="button-row">
               <button class="primary" type="submit">Generate Blog</button>
               <button type="button" id="sampleBtn">Use Sample Brief</button>
-              <button type="button" id="regenerateBtn">Regenerate Entire Blog</button>
+              <button type="button" id="regenerateBtn" hidden>Regenerate Entire Blog</button>
             </div>
           </form>
         </aside>
@@ -238,6 +247,32 @@
           </div>
         </section>
 
+      </section>
+
+      <section class="panel admin-panel" aria-label="Admin panel">
+        <div class="admin-header">
+          <div>
+            <p class="eyebrow">Admin Panel</p>
+            <h2>Users & Logs</h2>
+          </div>
+          <button type="button" id="refreshAdminBtn">Refresh</button>
+        </div>
+        <div class="admin-tabs" role="tablist" aria-label="Admin tabs">
+          <button class="admin-tab active" type="button" data-admin-tab="users">Users</button>
+          <button class="admin-tab" type="button" data-admin-tab="logs">Logs</button>
+        </div>
+        <div id="adminUsersView" class="admin-view active">
+          <div class="admin-actions">
+            <input id="newUserName" placeholder="Username">
+            <input id="newUserRole" placeholder="Role">
+            <input id="newUserStatus" placeholder="Status">
+            <button type="button" id="addUserBtn">Add User</button>
+          </div>
+          <div id="adminUsersGrid" class="admin-table"></div>
+        </div>
+        <div id="adminLogsView" class="admin-view">
+          <div id="adminLogsGrid" class="admin-table"></div>
+        </div>
       </section>
 
     </main>

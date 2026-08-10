@@ -29,6 +29,15 @@ const loginUsername = document.querySelector("#loginUsername");
 const loginPassword = document.querySelector("#loginPassword");
 const togglePassword = document.querySelector("#togglePassword");
 const logoutBtn = document.querySelector("#logoutBtn");
+const topicInput = document.querySelector("#topic");
+const detailsInput = document.querySelector("#details");
+const titleSuggestions = document.querySelector("#titleSuggestions");
+const autoContainBtn = document.querySelector("#autoContainBtn");
+const regenerateBtn = document.querySelector("#regenerateBtn");
+const refreshAdminBtn = document.querySelector("#refreshAdminBtn");
+const adminUsersGrid = document.querySelector("#adminUsersGrid");
+const adminLogsGrid = document.querySelector("#adminLogsGrid");
+const addUserBtn = document.querySelector("#addUserBtn");
 
 const STORAGE_KEY = "editorial-ai-blog-engine-draft";
 const AUTH_KEY = "editorial-ai-blog-engine-auth";
@@ -496,7 +505,7 @@ function collectBrief() {
   const wordCount = Number(getField("wordCount")) || 1800;
 
   return {
-    topic,
+    topic: normalizeTitleText(topic) || topic,
     details,
     companyWebsite: getField("companyWebsite"),
     primaryKeyword,
@@ -504,22 +513,112 @@ function collectBrief() {
     country: getField("country") || "United States",
     audience: getField("audience") || inferAudience(topic),
     brand: getField("brand"),
-    tone: getField("tone") || "Professional, clear, human",
-    goal: getField("goal") || "Educate and convert qualified leads",
-    cta: getField("cta") || "Book a strategy consultation",
+    tone: cleanSetting(getField("tone")),
+    goal: cleanSetting(getField("goal")),
+    cta: getField("cta"),
     language: getField("language") || "English",
-    blogFormat: getField("blogFormat") || "Magazine-style authority article",
-    designTemplate: getField("designTemplate") || "Clean editorial",
-    monetization: getField("monetization") || "None / educational",
-    distribution: getField("distribution") || "Website blog and SEO",
-    analyticsGoal: getField("analyticsGoal") || "Organic traffic and ranking",
-    communityAngle: getField("communityAngle") || "Reader questions and comments",
+    blogFormat: cleanSetting(getField("blogFormat")),
+    designTemplate: cleanSetting(getField("designTemplate")),
+    monetization: cleanSetting(getField("monetization"), "None"),
+    distribution: cleanSetting(getField("distribution")),
+    analyticsGoal: cleanSetting(getField("analyticsGoal")),
+    communityAngle: getField("communityAngle"),
+    adaptiveFormat: getAdaptiveContentStyle(topic),
     wordCount: Math.max(wordCount, 700)
   };
 }
 
 function splitList(value) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function cleanSetting(value, fallback = "") {
+  const clean = String(value || "").trim();
+  if (!clean || clean.toLowerCase() === "n/a" || clean.toLowerCase() === "none") return fallback;
+  return clean;
+}
+
+function getAdaptiveContentStyle(topic) {
+  const lower = topic.toLowerCase();
+  if (/\b(best|top|ideas|tips|examples|tools|list)\b/.test(lower)) return "ranked list sections, short paragraphs, bullet points, and comparison tables";
+  if (/\bhow to|guide|tutorial|steps|setup|create|build\b/.test(lower)) return "step-by-step headings, ordered lists, short explanations, and practical checkpoints";
+  if (/\bvs|versus|compare|comparison|difference\b/.test(lower)) return "comparison tables, pros and cons, decision criteria, and summary bullets";
+  if (/\bwhat is|meaning|explain|beginner|introduction\b/.test(lower)) return "plain-language paragraphs, examples, definitions, and short unordered lists";
+  if (/\bcase study|story|journey|experience\b/.test(lower)) return "narrative paragraphs, subheadings, timeline points, and lessons learned";
+  if (/\bnews|update|latest|trend|2026|2027\b/.test(lower)) return "news-style summary, context paragraphs, bullet takeaways, and careful caveats";
+  return "mixed editorial formatting with headings, subheadings, paragraphs, bullets, numbered lists, and tables only where useful";
+}
+
+function normalizeTitleText(value) {
+  return sentenceCase(String(value || "")
+    .replace(/\bifi\b/gi, "if")
+    .replace(/\bteh\b/gi, "the")
+    .replace(/\bthigns\b/gi, "things")
+    .replace(/\bblogg?\b/gi, "blog")
+    .replace(/\bautometically\b/gi, "automatically")
+    .replace(/\bformate?\b/gi, "format")
+    .replace(/\s+/g, " ")
+    .trim());
+}
+
+function updateTitleSuggestions() {
+  if (!titleSuggestions || !topicInput) return;
+  const raw = topicInput.value.trim();
+  if (!raw) {
+    titleSuggestions.classList.remove("active");
+    titleSuggestions.innerHTML = "";
+    return;
+  }
+  const corrected = normalizeTitleText(raw);
+  const suggestions = [];
+  if (corrected && corrected !== raw) suggestions.push({ label: "Correct spelling/grammar", value: corrected });
+  if (raw.length > 90) suggestions.push({ label: "Shorter SEO title", value: `${corrected.slice(0, 74).replace(/\s+\S*$/, "")}` });
+  const titleWords = corrected.split(/\s+/).filter(Boolean);
+  if (titleWords.length < 4) suggestions.push({ label: "More specific title", value: `${corrected}: Complete Guide` });
+  if (!suggestions.length) {
+    titleSuggestions.classList.remove("active");
+    titleSuggestions.innerHTML = "";
+    return;
+  }
+  titleSuggestions.innerHTML = suggestions.map((item) => `
+    <div class="suggestion-item">
+      <span><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.value)}</span>
+      <button type="button" data-title-suggestion="${escapeHtml(item.value)}">Use</button>
+    </div>
+  `).join("");
+  titleSuggestions.classList.add("active");
+}
+
+async function generateAutoContain() {
+  const title = getField("topic");
+  if (!title) return showToast("Add a blog title first.");
+  const button = autoContainBtn;
+  button.disabled = true;
+  button.textContent = "Writing contain...";
+  try {
+    const response = await fetch("/api/auto-contain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title })
+    });
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.message || "Auto contain failed.");
+    setField("details", data.details);
+    saveDraft();
+    showToast("Blog contain generated from title.");
+  } catch (error) {
+    setField("details", buildLocalAutoContain(title));
+    saveDraft();
+    showToast(error.message || "Local contain generated.");
+  } finally {
+    button.disabled = false;
+    button.textContent = "AI Auto Blog Contain";
+  }
+}
+
+function buildLocalAutoContain(title) {
+  const style = getAdaptiveContentStyle(title);
+  return `Cover the topic "${normalizeTitleText(title)}" with adaptive formatting: ${style}. Include the main meaning, reader intent, key headings, useful subheadings, practical examples, important points, advantages and disadvantages when relevant, mistakes to avoid when useful, and a clear final thought. Use tables only where comparison helps, ordered lists for steps, unordered lists for points, and paragraph length based on the topic.`;
 }
 
 function inferPrimaryKeyword(topic) {
@@ -1289,7 +1388,7 @@ async function generate() {
   generateButton.classList.add("loading");
   generateButton.dataset.originalText = generateButton.textContent;
   generateButton.textContent = "Generating...";
-  document.querySelector("#regenerateBtn").disabled = true;
+  if (regenerateBtn) regenerateBtn.disabled = true;
   runProgress();
   let packageData = null;
   try {
@@ -1298,11 +1397,12 @@ async function generate() {
     setEngineStatus(`AI server issue: ${error.message}. Fallback generator used.`, "fallback");
   }
   render(packageData || buildPackage(brief));
+  if (regenerateBtn) regenerateBtn.hidden = false;
   finishProgress();
   generateButton.disabled = false;
   generateButton.classList.remove("loading");
   generateButton.textContent = generateButton.dataset.originalText || "Generate Blog";
-  document.querySelector("#regenerateBtn").disabled = false;
+  if (regenerateBtn) regenerateBtn.disabled = false;
 }
 
 function regenerateSelectedSection() {
@@ -1378,6 +1478,15 @@ form.addEventListener("submit", (event) => {
   generate();
 });
 
+topicInput?.addEventListener("input", updateTitleSuggestions);
+titleSuggestions?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-title-suggestion]");
+  if (!button) return;
+  setField("topic", button.dataset.titleSuggestion);
+  updateTitleSuggestions();
+  saveDraft();
+});
+autoContainBtn?.addEventListener("click", generateAutoContain);
 loginForm?.addEventListener("submit", handleLogin);
 logoutBtn?.addEventListener("click", handleLogout);
 togglePassword?.addEventListener("click", handlePasswordToggle);
@@ -1387,7 +1496,7 @@ form.addEventListener("input", () => {
   form.saveTimer = window.setTimeout(saveDraft, 250);
 });
 
-document.querySelector("#regenerateBtn").addEventListener("click", generate);
+regenerateBtn?.addEventListener("click", generate);
 if (regenSectionBtn) regenSectionBtn.addEventListener("click", regenerateSelectedSection);
 if (regenImageBtn) regenImageBtn.addEventListener("click", regenerateImagePrompt);
 
@@ -1434,6 +1543,7 @@ document.querySelector("#newDraftBtn").addEventListener("click", () => {
   }
   if (regenSectionBtn) regenSectionBtn.disabled = true;
   if (regenImageBtn) regenImageBtn.disabled = true;
+  if (regenerateBtn) regenerateBtn.hidden = true;
   if (publishStatus) publishStatus.textContent = "Publishing queue idle.";
   resetProgress();
   showToast("New draft started.");
@@ -1667,6 +1777,91 @@ async function deleteImageCard(card) {
   }
 }
 
+async function loadAdminData() {
+  await Promise.all([loadAdminUsers(), loadAdminLogs()]);
+}
+
+async function loadAdminUsers() {
+  if (!adminUsersGrid) return;
+  try {
+    const response = await fetch("/api/admin/users", { cache: "no-store" });
+    const data = await response.json();
+    const users = data.users || [];
+    adminUsersGrid.innerHTML = users.map((user) => `
+      <div class="admin-row" data-user-id="${escapeHtml(user.id)}">
+        <input data-user-field="username" value="${escapeHtml(user.username || "")}" aria-label="Username">
+        <input data-user-field="role" value="${escapeHtml(user.role || "")}" aria-label="Role">
+        <input data-user-field="status" value="${escapeHtml(user.status || "")}" aria-label="Status">
+        <span>${escapeHtml(new Date(user.lastSeen || user.createdAt || Date.now()).toLocaleString())}</span>
+        <button type="button" data-save-user>Save</button>
+      </div>
+    `).join("") || "<p>No users yet.</p>";
+  } catch {
+    adminUsersGrid.innerHTML = "<p>User admin API unavailable.</p>";
+  }
+}
+
+async function loadAdminLogs() {
+  if (!adminLogsGrid) return;
+  try {
+    const response = await fetch("/api/admin/logs", { cache: "no-store" });
+    const data = await response.json();
+    const logs = data.logs || [];
+    adminLogsGrid.innerHTML = logs.map((log) => `
+      <div class="admin-row admin-log-row">
+        <span>${escapeHtml(new Date(log.time).toLocaleString())}</span>
+        <strong>${escapeHtml(log.type || "")}</strong>
+        <span>${escapeHtml(log.user || "")}</span>
+        <span>${escapeHtml(log.message || "")}</span>
+      </div>
+    `).join("") || "<p>No logs yet.</p>";
+  } catch {
+    adminLogsGrid.innerHTML = "<p>Logs API unavailable.</p>";
+  }
+}
+
+async function addAdminUser() {
+  const username = getField("newUserName");
+  if (!username) return showToast("Add a username.");
+  const payload = {
+    username,
+    role: getField("newUserRole") || "editor",
+    status: getField("newUserStatus") || "active"
+  };
+  const response = await fetch("/api/admin/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (!data.ok) return showToast(data.message || "User add failed.");
+  setField("newUserName", "");
+  setField("newUserRole", "");
+  setField("newUserStatus", "");
+  await loadAdminUsers();
+  await loadAdminLogs();
+  showToast("User added.");
+}
+
+async function saveAdminUser(row) {
+  const id = row.dataset.userId;
+  const payload = {};
+  row.querySelectorAll("[data-user-field]").forEach((field) => {
+    payload[field.dataset.userField] = field.value;
+  });
+  const response = await fetch(`/api/admin/users/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (data.ok) {
+    await loadAdminUsers();
+    await loadAdminLogs();
+    showToast("User saved.");
+  }
+}
+
 if (imageUpload) imageUpload.addEventListener("change", () => uploadImages(imageUpload.files));
 if (dropZone) {
   ["dragenter", "dragover"].forEach((eventName) => {
@@ -1694,8 +1889,24 @@ if (adminImageGrid) {
   });
 }
 
+document.querySelectorAll(".admin-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".admin-tab").forEach((item) => item.classList.remove("active"));
+    document.querySelectorAll(".admin-view").forEach((view) => view.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelector(`#admin${titleCase(tab.dataset.adminTab)}View`)?.classList.add("active");
+  });
+});
+refreshAdminBtn?.addEventListener("click", loadAdminData);
+addUserBtn?.addEventListener("click", addAdminUser);
+adminUsersGrid?.addEventListener("click", (event) => {
+  const row = event.target.closest(".admin-row");
+  if (row && event.target.matches("[data-save-user]")) saveAdminUser(row);
+});
+
 startNewDraftOnLoad();
 initializeLogin();
 checkServerEngine();
 populateCategoryFilter();
 loadImageLibrary();
+loadAdminData();

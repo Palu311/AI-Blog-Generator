@@ -13,6 +13,8 @@ const uploadDir = isVercel ? path.join(runtimeRoot, "uploads") : path.join(root,
 const imageDbPath = path.join(dataDir, "image-library.json");
 const reviewDbPath = path.join(dataDir, "review-drafts.json");
 const publishedDbPath = path.join(dataDir, "published-posts.json");
+const usersDbPath = path.join(dataDir, "users.json");
+const logsDbPath = path.join(dataDir, "user-logs.json");
 const jobs = new Map();
 
 function loadEnvFile() {
@@ -95,6 +97,8 @@ fs.mkdirSync(uploadDir, { recursive: true });
 ensureRuntimeJsonFile("image-library.json");
 ensureRuntimeJsonFile("review-drafts.json");
 ensureRuntimeJsonFile("published-posts.json");
+ensureRuntimeJsonFile("users.json");
+ensureRuntimeJsonFile("user-logs.json");
 
 function sendJson(res, status, payload) {
   res.writeHead(status, {
@@ -150,6 +154,80 @@ function readJsonArray(filePath) {
 
 function writeJsonArray(filePath, items) {
   fs.writeFileSync(filePath, JSON.stringify(items, null, 2), "utf8");
+}
+
+function ensureDefaultAdminUser() {
+  const users = readJsonArray(usersDbPath);
+  if (users.length) return users;
+  const now = new Date().toISOString();
+  const defaults = [{
+    id: createId("user"),
+    username: loginUsername,
+    role: "admin",
+    status: "active",
+    createdAt: now,
+    lastSeen: ""
+  }];
+  writeJsonArray(usersDbPath, defaults);
+  return defaults;
+}
+
+function writeUserLog(type, message, user = "system") {
+  const logs = readJsonArray(logsDbPath);
+  const entry = {
+    id: createId("log"),
+    time: new Date().toISOString(),
+    type,
+    user,
+    message
+  };
+  writeJsonArray(logsDbPath, [entry, ...logs].slice(0, 300));
+  return entry;
+}
+
+function buildAutoContainFromTitle(title) {
+  const cleanTitle = sentenceCase(title);
+  const lower = cleanTitle.toLowerCase();
+  const format = lower.includes(" vs ") || lower.includes("comparison")
+    ? "comparison table, pros and cons, decision points, and final recommendation"
+    : /how to|guide|steps|tutorial/.test(lower)
+      ? "step-by-step ordered lists, short paragraphs, examples, and checkpoints"
+      : /best|top|ideas|tips|tools/.test(lower)
+        ? "ranked points, short explanations, examples, and a summary table"
+        : /what is|meaning|beginner|explain/.test(lower)
+          ? "plain-language definitions, short paragraphs, examples, and bullet points"
+          : "adaptive headings, subheadings, paragraphs, bullet points, numbered lists, and tables only where useful";
+  return `Write a complete blog about "${cleanTitle}". Use ${format}. Cover reader intent, meaning/context, important headings and subheadings, practical examples, key points, mistakes or caveats when relevant, advantages/disadvantages only when useful, and final thoughts. Vary the formatting naturally: some sections can be paragraphs, some bullet lists, some ordered lists, and tables only when they help the topic.`;
+}
+
+function inferAdaptiveSections(topic, keyword, audience) {
+  const lower = String(topic || "").toLowerCase();
+  if (/\bvs\b|versus|comparison|compare|difference/.test(lower)) {
+    return [
+      { id: "Context", heading: `Quick Context for ${topic}`, body: `${topic} is best understood by comparing the options side by side before choosing one path. The reader needs clear criteria, not a generic explanation.` },
+      { id: "Comparison", heading: "Side-by-Side Comparison", body: `| Factor | Option A | Option B |\n| --- | --- | --- |\n| Best for | Readers who need one clear path | Readers comparing alternatives |\n| Main strength | Simplicity | Flexibility |\n| Watch point | Missing edge cases | Too many tradeoffs |` },
+      { id: "Decision", heading: "How to Choose", body: `1. Identify the reader's goal.\n2. Compare cost, effort, risk, and outcome.\n3. Choose the option that solves the primary problem with the least confusion.` }
+    ];
+  }
+  if (/how to|guide|steps|tutorial|setup|create|build/.test(lower)) {
+    return [
+      { id: "Overview", heading: `Before You Start with ${topic}`, body: `Start by clarifying the outcome, audience, and constraints. For ${audience}, the best tutorial keeps each step practical and avoids unnecessary theory.` },
+      { id: "Steps", heading: "Step-by-Step Process", body: `1. Define the exact goal.\n2. Gather the required inputs.\n3. Follow the process in small checkpoints.\n4. Review the result and fix weak sections.\n5. Publish or apply the final version only after checking important facts.` },
+      { id: "Checklist", heading: "Practical Checklist", body: `- Confirm the title matches the reader intent.\n- Keep examples close to the topic.\n- Use tables only for comparison.\n- Keep paragraphs short when explaining actions.` }
+    ];
+  }
+  if (/best|top|ideas|tips|tools|examples/.test(lower)) {
+    return [
+      { id: "Criteria", heading: "How These Points Were Chosen", body: `A useful list should not be random. Each point should help the reader understand ${keyword}, compare options, or take a practical next step.` },
+      { id: "List", heading: `Best Points About ${keyword}`, body: `- Start with the reader's most urgent problem.\n- Explain each idea with a short practical note.\n- Add examples where the topic could feel abstract.\n- Use a summary table if the reader needs to compare quickly.` },
+      { id: "Summary", heading: "Quick Summary Table", body: `| Point Type | Best Use |\n| --- | --- |\n| Short paragraph | Explanation |\n| Bullet list | Scannable points |\n| Ordered list | Process or steps |\n| Table | Comparison |` }
+    ];
+  }
+  return [
+    { id: "Meaning", heading: `What ${keyword} Means`, body: `${topic} becomes easier to understand when the explanation starts with the reader's real question. The goal is to explain the topic clearly before adding deeper detail.` },
+    { id: "Key Points", heading: "Key Points to Understand", body: `- What the topic means.\n- Why it matters.\n- Where readers usually get confused.\n- Which examples make the idea practical.` },
+    { id: "Examples", heading: "Practical Examples", body: `**Example 1:** A reader applies the idea in a simple everyday situation.\n\n**Example 2:** A reader compares two choices before deciding.\n\n**Example 3:** A reader checks an exception before acting.` }
+  ];
 }
 
 async function supabaseRequest(pathname, options = {}) {
@@ -867,11 +945,14 @@ Rules:
 - If facts are uncertain, avoid exact numbers and say editorial review should verify external references.
 - Avoid robotic phrases: "In today's fast-paced world", "game changer", "revolutionary", "unlock the power", "delve into", and "in conclusion".
 - Write naturally, professionally, and helpfully in the same spirit as a high-quality explanatory blog: engaging opener, simple explanation, practical examples, pros/cons only when natural, important missed points, and final thoughts.
-- Use professional blog formatting: clear H2 headings, useful H3 subheadings only when needed, bold labels such as **Example 1:**, **Advantages**, **Disadvantages**, and bullet points where they improve readability.
+- Use adaptive blog formatting based on the Blog Title and reader intent. Do not force every article into the same template.
+- Choose the best mix of H1, H2, H3, paragraphs, short paragraphs, long paragraphs, bullet lists, ordered lists, tables, examples, comparison blocks, checklists, and point-by-point sections.
+- Use tables only when comparison or structured data helps. Use ordered lists for steps. Use unordered lists for scannable points. Use paragraphs where explanation or storytelling is better.
 - The "markdown" field must contain only the blog article that a reader should see. Do not include SEO metadata, hero section notes, featured image prompts, table of contents, executive summary, supporting image blocks, key takeaways, FAQ, CTA, internal links, schema, image summaries, SEO checklist, publishing playbook, or quality-control notes inside "markdown".
 - Image prompts, SEO data, and publishing suggestions must stay in their own JSON fields outside "markdown".
 - Featured and supporting image prompts must be photorealistic, editorial, realistic, modern, no text, no watermark, 16:9 for hero.
-- Use the requested blog format, design template, monetization model, distribution channel, analytics goal, and community angle when provided.
+- Treat N/A, None, or empty advanced settings as no preference. Do not mention them in the article.
+- Adaptive formatting preference from frontend: ${brief.adaptiveFormat || "choose the best structure naturally from the Blog Title"}.
 - Include a publishing and growth playbook only outside the blog article.
 
 User brief:
@@ -1065,22 +1146,14 @@ async function buildFallbackPackage(brief, reason) {
     };
   });
 
+  const adaptiveSections = inferAdaptiveSections(topic, keyword, audience);
   const sections = [
     {
       id: "Introduction",
       heading: `Introduction to ${topic}`,
       body: `In straightforward terms, ${keyword} becomes much easier when the reader first understands what it means, who it applies to, and what practical benefit it can create. A good explanation should remove confusion before adding detail.\n\n${brief.details ? `The provided contain focuses on this point: ${brief.details}` : "Because no detailed source notes were provided, this draft stays careful and avoids unsupported claims."}`
     },
-    {
-      id: "Simple Words",
-      heading: `${sentenceCase(keyword)} in Simple Words`,
-      body: `Let us strip away the difficult wording. ${sentenceCase(keyword)} should be understood by asking three simple questions: what does it mean, who can use it, and what changes after it is applied?\n\nOnce those answers are clear, the topic becomes far less intimidating. The reader no longer has to memorize technical language; they can understand the rule or idea through conditions, examples, and limits.`
-    },
-    {
-      id: "Practical Examples",
-      heading: "Practical Examples",
-      body: `**Example 1:** A reader who clearly meets the main condition can apply the idea directly after checking the required limit, category, or rule.\n\n**Example 2:** A reader who is close to a threshold should calculate carefully, because a small difference can sometimes change the final result.\n\n**Example 3:** A reader with a special case should check whether an exception applies before relying on the general explanation.`
-    },
+    ...adaptiveSections,
     {
       id: "Objective",
       heading: "Why Was This Introduced? (The Objective)",
@@ -1446,11 +1519,11 @@ Shape:
 Use Google Search grounding for real-time/current facts when helpful.
 The article must be based on the user's Blog Title and Blog Contain. Do not drift into a generic CRM/product article.
 If companyWebsiteContext is available, use it only for brand/audience/service positioning and examples. Do not turn the article into a company landing page unless the Blog Title asks for that.
-Write the article exactly like the provided Gemini-style sample: title, engaging opening without a heading, "Introduction to [topic]", "[topic] in Simple Words", "Practical Examples", "Why Was This Introduced? (The Objective)" or a natural equivalent, "Advantages and Disadvantages of [topic]", "Crucial Points You Might Have Missed", and "Final Thoughts".
+Do not write every article with the same fixed headings. Choose headings and formatting that match the Blog Title. A tutorial can use steps and ordered lists; a comparison can use tables; a listicle can use ranked H2 sections; an explanatory topic can use plain-language paragraphs and examples; a news/trend topic can use context, takeaways, and caveats.
 Formatting rules for the article body:
 - Bold example labels exactly like **Example 1:**, **Example 2:**, **Example 3:**.
-- Use bullet points where the reader needs a scannable list.
-- Use **Advantages** and **Disadvantages** labels in bold, followed by Markdown bullet points.
+- Use bullet points where the reader needs a scannable list, ordered lists for steps, and tables for comparisons or structured facts.
+- Use **Advantages** and **Disadvantages** labels only when the topic naturally needs pros and cons.
 - Keep headings and subheadings professional, like a polished blog on a top publishing site.
 Do not create internal tool headings in article content. Never use these article headings: SEO Metadata, Hero Section, Gemini Best Practices, Best Practices for Better Blog Output, Common Mistakes to Avoid, How to Measure Success, Publishing and Growth Playbook, Quality Control, Key Takeaways, Publishing & Growth Playbook, FAQ, Call To Action, Image Assets Summary, SEO Checklist.
 Use the user-provided blog contain as source context.
@@ -1705,13 +1778,90 @@ async function handleApi(req, res) {
       const payload = JSON.parse(body || "{}");
       const valid = String(payload.username || "") === loginUsername && String(payload.password || "") === loginPassword;
       if (!valid) {
+        writeUserLog("login_failed", "Invalid login attempt", String(payload.username || "unknown"));
         sendJson(res, 401, { ok: false, message: "Invalid username or password." });
         return;
       }
+      const users = ensureDefaultAdminUser().map((user) => user.username === loginUsername ? { ...user, lastSeen: new Date().toISOString() } : user);
+      writeJsonArray(usersDbPath, users);
+      writeUserLog("login", "User logged in", loginUsername);
       sendJson(res, 200, { ok: true, message: "Login successful." });
     } catch (error) {
       sendJson(res, 400, { ok: false, message: "Login failed." });
     }
+    return;
+  }
+
+  if (req.url === "/api/auto-contain" && req.method === "POST") {
+    try {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}");
+      if (!payload.title) {
+        sendJson(res, 400, { ok: false, message: "Blog title is required." });
+        return;
+      }
+      sendJson(res, 200, { ok: true, details: buildAutoContainFromTitle(payload.title) });
+    } catch (error) {
+      sendJson(res, 400, { ok: false, message: error.message || "Auto contain failed." });
+    }
+    return;
+  }
+
+  if (req.url === "/api/admin/users" && req.method === "GET") {
+    sendJson(res, 200, { ok: true, users: ensureDefaultAdminUser() });
+    return;
+  }
+
+  if (req.url === "/api/admin/users" && req.method === "POST") {
+    try {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}");
+      if (!payload.username) {
+        sendJson(res, 400, { ok: false, message: "Username is required." });
+        return;
+      }
+      const now = new Date().toISOString();
+      const users = ensureDefaultAdminUser();
+      const user = {
+        id: createId("user"),
+        username: String(payload.username).trim(),
+        role: String(payload.role || "editor").trim(),
+        status: String(payload.status || "active").trim(),
+        createdAt: now,
+        lastSeen: ""
+      };
+      writeJsonArray(usersDbPath, [user, ...users]);
+      writeUserLog("user_created", `Created user ${user.username}`, loginUsername);
+      sendJson(res, 201, { ok: true, user });
+    } catch (error) {
+      sendJson(res, 400, { ok: false, message: error.message || "User create failed." });
+    }
+    return;
+  }
+
+  if (req.url.startsWith("/api/admin/users/") && req.method === "PUT") {
+    try {
+      const userId = req.url.split("/").pop();
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}");
+      const users = ensureDefaultAdminUser();
+      const nextUsers = users.map((user) => user.id === userId ? {
+        ...user,
+        username: String(payload.username || user.username).trim(),
+        role: String(payload.role || user.role).trim(),
+        status: String(payload.status || user.status).trim()
+      } : user);
+      writeJsonArray(usersDbPath, nextUsers);
+      writeUserLog("user_updated", `Updated user ${userId}`, loginUsername);
+      sendJson(res, 200, { ok: true });
+    } catch (error) {
+      sendJson(res, 400, { ok: false, message: error.message || "User update failed." });
+    }
+    return;
+  }
+
+  if (req.url === "/api/admin/logs" && req.method === "GET") {
+    sendJson(res, 200, { ok: true, logs: readJsonArray(logsDbPath).slice(0, 200) });
     return;
   }
 
@@ -1724,6 +1874,7 @@ async function handleApi(req, res) {
         sendJson(res, 400, { ok: false, message: "Blog title is required." });
         return;
       }
+      writeUserLog("generate", `Generated blog: ${payload.brief.topic}`, loginUsername);
       sendJson(res, 200, await callGemini(await enrichBrief(payload.brief)));
     } catch (error) {
       sendJson(res, 200, {
@@ -1757,6 +1908,7 @@ async function handleApi(req, res) {
         error: null
       };
       jobs.set(jobId, job);
+      writeUserLog("generate_job", `Started blog generation: ${payload.brief.topic}`, loginUsername);
       runGenerationJob(jobId, payload.brief);
       sendJson(res, 202, { ok: true, jobId });
     } catch (error) {
@@ -1785,6 +1937,7 @@ async function handleApi(req, res) {
         return;
       }
       const review = await createReviewDraft(req, payload.packageData);
+      writeUserLog("review_created", `Created review: ${review.title}`, loginUsername);
       const email = await sendReviewEmail(review, review.reviewUrl);
       sendJson(res, 201, {
         ok: true,
@@ -1808,6 +1961,7 @@ async function handleApi(req, res) {
       return;
     }
     const published = await publishReview(req, review);
+    writeUserLog("published", `Published blog: ${published.title}`, loginUsername);
     sendJson(res, 200, { ok: true, publishedUrl: published.url, slug: published.slug });
     return;
   }

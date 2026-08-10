@@ -4,6 +4,8 @@ server.pid
 codex-server*.log
 .env
 data/image-library.json
+data/users.json
+data/user-logs.json
 uploads/
 node_modules/
 dist/
