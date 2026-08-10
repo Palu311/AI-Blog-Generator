@@ -524,7 +524,7 @@ function collectBrief() {
   const details = getField("details");
   const primaryKeyword = getField("primaryKeyword") || inferPrimaryKeyword(topic);
   const secondaryKeywords = splitList(getField("secondaryKeywords"));
-  const wordCount = Number(getField("wordCount")) || 1800;
+  const wordCount = Number(getField("wordCount")) || 2400;
 
   return {
     topic: normalizeTitleText(topic) || topic,
@@ -546,7 +546,7 @@ function collectBrief() {
     analyticsGoal: cleanSetting(getField("analyticsGoal")),
     communityAngle: getField("communityAngle"),
     adaptiveFormat: getAdaptiveContentStyle(topic),
-    wordCount: Math.max(wordCount, 700)
+    wordCount: Math.max(wordCount, 1200)
   };
 }
 
@@ -640,7 +640,7 @@ async function generateAutoContain() {
 
 function buildLocalAutoContain(title) {
   const style = getAdaptiveContentStyle(title);
-  return `Write deeply and specifically about the exact blog title "${normalizeTitleText(title)}". Do not write generic content. Every section should directly explain, expand, compare, prove, or answer this title. Use adaptive formatting: ${style}. Include the main meaning, reader intent, title-specific headings, useful subheadings, practical examples, important points, mistakes or caveats when useful, advantages and disadvantages only when relevant, and a clear final thought. Use tables only where comparison helps, ordered lists for steps, unordered lists for points, and paragraph length based on the title.`;
+  return `Write deeply and specifically about the exact blog title "${normalizeTitleText(title)}". Do not write generic content. Every section should directly explain, expand, compare, prove, or answer this title with enough detail for a publish-ready blog. Use adaptive formatting: ${style}. Include the main meaning, reader intent, title-specific headings, useful subheadings, practical examples, important points, mistakes or caveats when useful, edge cases, decision factors, advantages and disadvantages only when relevant, and a clear final thought. Use tables only where comparison helps, ordered lists for steps, unordered lists for points, and paragraph length based on the title. Prefer detailed 3-5 paragraph sections where explanation is needed.`;
 }
 
 function inferPrimaryKeyword(topic) {
@@ -1519,7 +1519,7 @@ document.querySelector("#sampleBtn").addEventListener("click", () => {
   setField("distribution", "Website blog and SEO");
   setField("analyticsGoal", "Engagement and reading depth");
   setField("communityAngle", "Reader questions and comments");
-  setField("wordCount", "1800");
+  setField("wordCount", "2400");
   saveDraft();
   showToast("Sample brief loaded.");
 });

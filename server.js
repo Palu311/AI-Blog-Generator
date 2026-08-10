@@ -197,36 +197,36 @@ function buildAutoContainFromTitle(title) {
         : /what is|meaning|beginner|explain/.test(lower)
           ? "plain-language definitions, short paragraphs, examples, and bullet points"
           : "adaptive headings, subheadings, paragraphs, bullet points, numbered lists, and tables only where useful";
-  return `Write a deep, complete, title-focused blog about "${cleanTitle}". Every section must directly answer or expand this exact title, not a generic related topic. Use ${format}. Cover reader intent, meaning/context, important title-specific headings and subheadings, practical examples, key points, mistakes or caveats when relevant, advantages/disadvantages only when useful, and final thoughts. Vary the formatting naturally: some sections can be paragraphs, some bullet lists, some ordered lists, and tables only when they help the topic.`;
+  return `Write a deep, complete, title-focused blog about "${cleanTitle}". Every section must directly answer or expand this exact title, not a generic related topic. Use ${format}. Cover reader intent, meaning/context, important title-specific headings and subheadings, practical examples, key points, mistakes or caveats when relevant, edge cases, decision factors, advantages/disadvantages only when useful, and final thoughts. Important sections should have enough depth for publishing, usually 3-5 substantial paragraphs or a useful mix of paragraphs, bullets, ordered steps, and tables. Vary the formatting naturally: some sections can be paragraphs, some bullet lists, some ordered lists, and tables only when they help the topic.`;
 }
 
 function inferAdaptiveSections(topic, keyword, audience) {
   const lower = String(topic || "").toLowerCase();
   if (/\bvs\b|versus|comparison|compare|difference/.test(lower)) {
     return [
-      { id: "Context", heading: `Quick Context for ${topic}`, body: `${topic} is best understood by comparing the options side by side before choosing one path. The reader needs clear criteria, not a generic explanation.` },
+      { id: "Context", heading: `Quick Context for ${topic}`, body: `${topic} is best understood by comparing the options side by side before choosing one path. The reader needs clear criteria, not a generic explanation.\n\nA deeper comparison should explain where each option fits, what tradeoffs matter, what hidden costs or risks may appear, and how a reader should decide based on their real situation. This gives the article practical depth instead of only listing surface-level differences.` },
       { id: "Comparison", heading: "Side-by-Side Comparison", body: `| Factor | Option A | Option B |\n| --- | --- | --- |\n| Best for | Readers who need one clear path | Readers comparing alternatives |\n| Main strength | Simplicity | Flexibility |\n| Watch point | Missing edge cases | Too many tradeoffs |` },
-      { id: "Decision", heading: "How to Choose", body: `1. Identify the reader's goal.\n2. Compare cost, effort, risk, and outcome.\n3. Choose the option that solves the primary problem with the least confusion.` }
+      { id: "Decision", heading: "How to Choose", body: `1. Identify the reader's goal.\n2. Compare cost, effort, risk, and outcome.\n3. Check exceptions, timing, eligibility, or technical limits.\n4. Choose the option that solves the primary problem with the least confusion.\n5. Review the decision against the exact promise of "${topic}".\n\nThe strongest recommendation should explain why one path is better for a particular reader, not simply declare a winner.` }
     ];
   }
   if (/how to|guide|steps|tutorial|setup|create|build/.test(lower)) {
     return [
-      { id: "Overview", heading: `Before You Start with ${topic}`, body: `Start by clarifying the outcome, audience, and constraints. For ${audience}, the best tutorial keeps each step practical and avoids unnecessary theory.` },
+      { id: "Overview", heading: `Before You Start with ${topic}`, body: `Start by clarifying the outcome, audience, and constraints. For ${audience}, the best tutorial keeps each step practical and avoids unnecessary theory.\n\nA deeper guide should also explain what the reader needs before beginning, what mistakes usually happen, how to judge progress, and when to stop and verify facts. This makes the process easier to follow and safer to apply.` },
       { id: "Steps", heading: "Step-by-Step Process", body: `1. Define the exact goal.\n2. Gather the required inputs.\n3. Follow the process in small checkpoints.\n4. Review the result and fix weak sections.\n5. Publish or apply the final version only after checking important facts.` },
-      { id: "Checklist", heading: "Practical Checklist", body: `- Confirm the title matches the reader intent.\n- Keep examples close to the topic.\n- Use tables only for comparison.\n- Keep paragraphs short when explaining actions.` }
+      { id: "Checklist", heading: "Practical Checklist", body: `- Confirm the title matches the reader intent.\n- Define the exact outcome before writing or acting.\n- Keep examples close to the topic.\n- Add caveats, limits, or exceptions where the reader could misunderstand.\n- Use tables only for comparison.\n- Keep paragraphs short when explaining actions, but use deeper paragraphs when explaining why something matters.` }
     ];
   }
   if (/best|top|ideas|tips|tools|examples/.test(lower)) {
     return [
-      { id: "Criteria", heading: "How These Points Were Chosen", body: `A useful list should not be random. Each point should help the reader understand ${keyword}, compare options, or take a practical next step.` },
-      { id: "List", heading: `Best Points About ${keyword}`, body: `- Start with the reader's most urgent problem.\n- Explain each idea with a short practical note.\n- Add examples where the topic could feel abstract.\n- Use a summary table if the reader needs to compare quickly.` },
+      { id: "Criteria", heading: "How These Points Were Chosen", body: `A useful list should not be random. Each point should help the reader understand ${keyword}, compare options, or take a practical next step.\n\nFor deeper content, each point should explain the reason it matters, the situation where it is useful, a quick example, and a warning or limitation where appropriate. That turns a simple list into a genuinely helpful guide.` },
+      { id: "List", heading: `Best Points About ${keyword}`, body: `- Start with the reader's most urgent problem and explain why it matters.\n- Explain each idea with a practical note, not just a headline.\n- Add examples where the topic could feel abstract.\n- Include caveats where a point may not apply to every reader.\n- Use a summary table if the reader needs to compare quickly.` },
       { id: "Summary", heading: "Quick Summary Table", body: `| Point Type | Best Use |\n| --- | --- |\n| Short paragraph | Explanation |\n| Bullet list | Scannable points |\n| Ordered list | Process or steps |\n| Table | Comparison |` }
     ];
   }
   return [
-    { id: "Meaning", heading: `What ${keyword} Means`, body: `${topic} becomes easier to understand when the explanation starts with the reader's real question. The goal is to explain the topic clearly before adding deeper detail.` },
-    { id: "Key Points", heading: "Key Points to Understand", body: `- What the topic means.\n- Why it matters.\n- Where readers usually get confused.\n- Which examples make the idea practical.` },
-    { id: "Examples", heading: "Practical Examples", body: `**Example 1:** A reader applies the idea in a simple everyday situation.\n\n**Example 2:** A reader compares two choices before deciding.\n\n**Example 3:** A reader checks an exception before acting.` }
+    { id: "Meaning", heading: `What ${keyword} Means`, body: `${topic} becomes easier to understand when the explanation starts with the reader's real question. The goal is to explain the topic clearly before adding deeper detail.\n\nA deeper explanation should define the topic, explain the context around it, show why people search for it, and identify what a reader should understand before making a decision. This helps the blog feel useful instead of shallow.` },
+    { id: "Key Points", heading: "Key Points to Understand", body: `- What the topic means and why the title matters.\n- Why readers usually care about this subject.\n- Where readers usually get confused.\n- Which examples make the idea practical.\n- What limits, exceptions, or checks should be reviewed before acting.` },
+    { id: "Examples", heading: "Practical Examples", body: `**Example 1:** A reader applies the idea in a simple everyday situation, then checks whether any condition changes the result.\n\n**Example 2:** A reader compares two choices before deciding and uses the title as the decision filter.\n\n**Example 3:** A reader checks an exception, risk, or edge case before acting so the advice does not become misleading.` }
   ];
 }
 
@@ -940,6 +940,8 @@ Rules:
 - Current date: ${new Date().toISOString().slice(0, 10)}. Use current, real-world information when the topic depends on recent rules, laws, taxes, prices, policies, or facts.
 - The user-provided Blog Title is the article topic. Do not replace it with a generic title. Keep the generated title very close to the user's Blog Title unless correcting grammar.
 - The article must be deeply related to the Blog Title. Every major section must answer, explain, compare, prove, or expand the exact title.
+- Write with real depth. Important sections should usually contain 3-5 substantial paragraphs or a mix of paragraphs, examples, bullets, and tables. Avoid thin 1-paragraph sections unless the title clearly calls for a short answer.
+- For each major idea, explain what it means, why it matters, how it works, common mistakes, practical examples, edge cases, and what the reader should check next when relevant.
 - Before writing, identify the important nouns, entities, action words, and intent inside the Blog Title, then make sure those ideas appear throughout the article.
 - Do not write generic content that could fit any topic. Avoid broad filler sections unless they are clearly tied back to the exact Blog Title.
 - If the title is about a specific law, tool, industry, product, location, person, comparison, or process, keep the entire blog anchored to that specific subject.
@@ -948,7 +950,7 @@ Rules:
 - Never invent statistics, quotes, government data, company facts, medical advice, legal advice, or financial claims.
 - If facts are uncertain, avoid exact numbers and say editorial review should verify external references.
 - Avoid robotic phrases: "In today's fast-paced world", "game changer", "revolutionary", "unlock the power", "delve into", and "in conclusion".
-- Write naturally, professionally, and helpfully in the same spirit as a high-quality explanatory blog: engaging opener, simple explanation, practical examples, pros/cons only when natural, important missed points, and final thoughts.
+- Write naturally, professionally, and helpfully in the same spirit as a high-quality explanatory blog: engaging opener, deep title-specific explanation, practical examples, pros/cons only when natural, important missed points, edge cases, and final thoughts.
 - Use adaptive blog formatting based on the Blog Title and reader intent. Do not force every article into the same template.
 - Choose the best mix of H1, H2, H3, paragraphs, short paragraphs, long paragraphs, bullet lists, ordered lists, tables, examples, comparison blocks, checklists, and point-by-point sections.
 - Use tables only when comparison or structured data helps. Use ordered lists for steps. Use unordered lists for scannable points. Use paragraphs where explanation or storytelling is better.
@@ -1091,7 +1093,7 @@ async function buildFallbackPackage(brief, reason) {
   const keyword = inferPrimaryKeyword(brief);
   const slug = slugify(`${keyword} guide`);
   const audience = brief.audience || "readers searching for this exact topic";
-  const wordCount = Number(brief.wordCount) || 1800;
+  const wordCount = Number(brief.wordCount) || 2400;
   const blogFormat = brief.blogFormat || "Adaptive title-based article";
   const designTemplate = brief.designTemplate || "Topic-first editorial";
   const monetization = brief.monetization || "None / educational";
@@ -2061,7 +2063,7 @@ async function handleApi(req, res) {
 async function runGenerationJob(jobId, brief) {
   const job = jobs.get(jobId);
   if (!job) return;
-  const requestedWords = Number(brief.wordCount) || 1800;
+  const requestedWords = Number(brief.wordCount) || 2400;
   const chapters = Math.max(1, Math.ceil(requestedWords / 2500));
   const update = (progress, message) => {
     job.status = "running";
