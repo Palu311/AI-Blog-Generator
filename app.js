@@ -640,7 +640,7 @@ async function generateAutoContain() {
 
 function buildLocalAutoContain(title) {
   const style = getAdaptiveContentStyle(title);
-  return `Cover the topic "${normalizeTitleText(title)}" with adaptive formatting: ${style}. Include the main meaning, reader intent, key headings, useful subheadings, practical examples, important points, advantages and disadvantages when relevant, mistakes to avoid when useful, and a clear final thought. Use tables only where comparison helps, ordered lists for steps, unordered lists for points, and paragraph length based on the topic.`;
+  return `Write deeply and specifically about the exact blog title "${normalizeTitleText(title)}". Do not write generic content. Every section should directly explain, expand, compare, prove, or answer this title. Use adaptive formatting: ${style}. Include the main meaning, reader intent, title-specific headings, useful subheadings, practical examples, important points, mistakes or caveats when useful, advantages and disadvantages only when relevant, and a clear final thought. Use tables only where comparison helps, ordered lists for steps, unordered lists for points, and paragraph length based on the title.`;
 }
 
 function inferPrimaryKeyword(topic) {

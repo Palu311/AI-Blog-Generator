@@ -197,7 +197,7 @@ function buildAutoContainFromTitle(title) {
         : /what is|meaning|beginner|explain/.test(lower)
           ? "plain-language definitions, short paragraphs, examples, and bullet points"
           : "adaptive headings, subheadings, paragraphs, bullet points, numbered lists, and tables only where useful";
-  return `Write a complete blog about "${cleanTitle}". Use ${format}. Cover reader intent, meaning/context, important headings and subheadings, practical examples, key points, mistakes or caveats when relevant, advantages/disadvantages only when useful, and final thoughts. Vary the formatting naturally: some sections can be paragraphs, some bullet lists, some ordered lists, and tables only when they help the topic.`;
+  return `Write a deep, complete, title-focused blog about "${cleanTitle}". Every section must directly answer or expand this exact title, not a generic related topic. Use ${format}. Cover reader intent, meaning/context, important title-specific headings and subheadings, practical examples, key points, mistakes or caveats when relevant, advantages/disadvantages only when useful, and final thoughts. Vary the formatting naturally: some sections can be paragraphs, some bullet lists, some ordered lists, and tables only when they help the topic.`;
 }
 
 function inferAdaptiveSections(topic, keyword, audience) {
@@ -939,6 +939,10 @@ Create a production-ready blog article and a separate publishing support package
 Rules:
 - Current date: ${new Date().toISOString().slice(0, 10)}. Use current, real-world information when the topic depends on recent rules, laws, taxes, prices, policies, or facts.
 - The user-provided Blog Title is the article topic. Do not replace it with a generic title. Keep the generated title very close to the user's Blog Title unless correcting grammar.
+- The article must be deeply related to the Blog Title. Every major section must answer, explain, compare, prove, or expand the exact title.
+- Before writing, identify the important nouns, entities, action words, and intent inside the Blog Title, then make sure those ideas appear throughout the article.
+- Do not write generic content that could fit any topic. Avoid broad filler sections unless they are clearly tied back to the exact Blog Title.
+- If the title is about a specific law, tool, industry, product, location, person, comparison, or process, keep the entire blog anchored to that specific subject.
 - The user-provided Blog Contain is mandatory source direction. Every requested point in Blog Contain must be covered in the article body.
 - Company Website is optional context only. If companyWebsiteContext is present, use it to understand brand, services, audience, tone, and positioning, but never let it override Blog Title or Blog Contain.
 - Never invent statistics, quotes, government data, company facts, medical advice, legal advice, or financial claims.
@@ -1086,10 +1090,10 @@ async function buildFallbackPackage(brief, reason) {
   const topic = sentenceCase(brief.topic);
   const keyword = inferPrimaryKeyword(brief);
   const slug = slugify(`${keyword} guide`);
-  const audience = brief.audience || "business decision-makers and content teams";
+  const audience = brief.audience || "readers searching for this exact topic";
   const wordCount = Number(brief.wordCount) || 1800;
-  const blogFormat = brief.blogFormat || "Magazine-style authority article";
-  const designTemplate = brief.designTemplate || "Clean editorial";
+  const blogFormat = brief.blogFormat || "Adaptive title-based article";
+  const designTemplate = brief.designTemplate || "Topic-first editorial";
   const monetization = brief.monetization || "None / educational";
   const distribution = brief.distribution || "Website blog and SEO";
   const analyticsGoal = brief.analyticsGoal || "Organic traffic and ranking";
@@ -1142,7 +1146,7 @@ async function buildFallbackPackage(brief, reason) {
     return {
       id: `Continuation Chapter ${chapterNumber}`,
       heading: `Advanced Chapter ${chapterNumber}: ${sentenceCase(keyword)} in Practice`,
-      body: `This continuation chapter expands the article without restarting the topic or repeating earlier headings. It keeps the same editorial voice and builds on the strategy already introduced for ${audience}.\n\nA practical way to apply ${keyword} is to connect the blog generator with the daily CRM workflow. The team should capture article ideas from sales calls, support questions, campaign themes, and search demand. Those inputs make the generated blog more specific, which usually improves quality more than simply asking for a longer article.\n\nFor long-form content, each chapter needs a distinct purpose. One chapter can explain the planning framework, another can cover editorial review, another can explain image selection, and another can focus on measurement. This prevents the article from becoming repetitive while still giving the reader enough depth.\n\n### Chapter ${chapterNumber} Action Checklist\n\n- Confirm what question this chapter answers.\n- Add examples that match the target audience.\n- Keep claims careful unless verified sources are available.\n- Connect the section back to CRM outcomes such as lead nurturing, education, or sales enablement.\n- Add a relevant image from the library when one matches the section.\n\n| Chapter Focus | Practical Use | Editorial Guardrail |\n| --- | --- | --- |\n| Planning | Turn CRM insights into blog angles | Avoid generic advice |\n| Drafting | Generate structured Markdown | Preserve heading hierarchy |\n| Review | Check claims, tone, and flow | Remove duplicated ideas |\n| Publishing | Export to the correct channel | Keep image SEO intact |\n\nThe main goal is continuity. A reader should feel that each new chapter adds useful depth, not that the article has been restarted by another AI request.`
+      body: `This continuation chapter expands "${topic}" without restarting the article or repeating earlier headings. It keeps the same editorial voice and adds deeper title-specific guidance for ${audience}.\n\nA practical way to deepen ${keyword} is to return to the exact promise of the title and ask what the reader still needs: definitions, examples, exceptions, process steps, comparisons, warnings, or implementation details. Each paragraph should answer one of those needs directly.\n\nFor long-form content, each chapter needs a distinct title-related purpose. One chapter can explain conditions, another can cover examples, another can compare options, and another can focus on mistakes or decision points. This prevents the article from becoming repetitive while still giving the reader enough depth.\n\n### Chapter ${chapterNumber} Action Checklist\n\n- Confirm what part of "${topic}" this chapter explains.\n- Add examples that match the exact title and target audience.\n- Keep claims careful unless verified sources are available.\n- Remove generic advice that could apply to any blog topic.\n- Add a relevant image from the library when one matches the section.\n\n| Chapter Focus | Practical Use | Editorial Guardrail |\n| --- | --- | --- |\n| Meaning | Clarify title-specific terms | Avoid vague definitions |\n| Examples | Show how the title works in practice | Avoid invented claims |\n| Decisions | Help the reader choose or act | Preserve nuance |\n| Review | Check claims, flow, and relevance | Remove repeated ideas |\n\nThe main goal is continuity. A reader should feel that each new chapter adds useful depth to "${topic}", not that the article has drifted into a generic content template.`
     };
   });
 
@@ -1151,13 +1155,13 @@ async function buildFallbackPackage(brief, reason) {
     {
       id: "Introduction",
       heading: `Introduction to ${topic}`,
-      body: `In straightforward terms, ${keyword} becomes much easier when the reader first understands what it means, who it applies to, and what practical benefit it can create. A good explanation should remove confusion before adding detail.\n\n${brief.details ? `The provided contain focuses on this point: ${brief.details}` : "Because no detailed source notes were provided, this draft stays careful and avoids unsupported claims."}`
+      body: `In straightforward terms, "${topic}" becomes much easier when the reader first understands what the title is really asking, why it matters, who it applies to, and what practical outcome the reader expects. A good explanation should remove confusion before adding detail.\n\n${brief.details ? `The provided contain focuses on this point: ${brief.details}` : "Because no detailed source notes were provided, this draft stays careful, stays close to the title, and avoids unsupported claims."}`
     },
     ...adaptiveSections,
     {
       id: "Objective",
       heading: "Why Was This Introduced? (The Objective)",
-      body: `The objective behind a helpful provision or framework is usually practical relief. It exists to make a system easier to follow, encourage correct action, or give people a clearer way to plan.\n\nFor ${audience}, the value is not only the benefit itself. The value is knowing when it applies, when it does not, and what supporting details should be checked before making a decision.`
+      body: `The objective of this section is to explain why "${topic}" matters in real use. A strong article should not only define the topic; it should show the reader why the title is worth understanding and what changes after they understand it.\n\nFor ${audience}, the value is knowing when the idea applies, when it does not, what details should be checked, and how the title connects to a practical decision or next step.`
     },
     {
       id: "Advantages Disadvantages",
@@ -1167,13 +1171,13 @@ async function buildFallbackPackage(brief, reason) {
     {
       id: "Crucial Points",
       heading: "Crucial Points You Might Have Missed",
-      body: `Do not confuse the headline benefit with the exact conditions required to use it. The most common reader mistake is understanding the general idea but missing a limit, exception, category, or timing detail.\n\nIf the topic depends on current rules, official data, legal interpretation, medical advice, tax law, or financial decisions, the reader should verify the latest information before acting.`
+      body: `Do not confuse the broad topic with the exact meaning of "${topic}". The most common reader mistake is understanding a general idea but missing a title-specific limit, exception, category, step, or decision point.\n\nIf this title depends on current rules, official data, legal interpretation, medical advice, tax law, financial decisions, or fast-changing tools, the reader should verify the latest information before acting.`
     },
     ...continuationSections,
     {
       id: "Conclusion",
       heading: "Final Thoughts",
-      body: `${sentenceCase(keyword)} becomes easier to understand when the explanation is practical, careful, and grounded in the reader's real situation. The important thing is not only knowing the headline benefit, but also knowing the conditions, limits, examples, and exceptions.\n\nIf this topic affects a financial, legal, medical, or time-sensitive decision, readers should verify the current rules from an official source or a qualified professional before acting.`
+      body: `${topic} becomes easier to understand when the explanation stays close to the title, uses practical examples, and gives the reader enough detail to make sense of the subject. The important thing is not only knowing the headline idea, but also knowing the conditions, limits, examples, exceptions, and next steps that belong to this exact topic.\n\nIf this topic affects a financial, legal, medical, technical, or time-sensitive decision, readers should verify the current rules or facts from an official source or qualified professional before acting.`
     }
   ];
   const libraryImages = await selectLibraryImages(brief, sections);
@@ -1518,6 +1522,9 @@ Shape:
 }
 Use Google Search grounding for real-time/current facts when helpful.
 The article must be based on the user's Blog Title and Blog Contain. Do not drift into a generic CRM/product article.
+The Blog Title is the anchor. Every H2/H3 section must clearly connect to that exact title. If a paragraph could fit any other topic, rewrite it to include title-specific detail.
+Use the important nouns, entities, action words, and intent from the Blog Title throughout the article.
+Write deep content: explain context, causes, process, examples, edge cases, mistakes, checks, and practical implications that belong to this exact title.
 If companyWebsiteContext is available, use it only for brand/audience/service positioning and examples. Do not turn the article into a company landing page unless the Blog Title asks for that.
 Do not write every article with the same fixed headings. Choose headings and formatting that match the Blog Title. A tutorial can use steps and ordered lists; a comparison can use tables; a listicle can use ranked H2 sections; an explanatory topic can use plain-language paragraphs and examples; a news/trend topic can use context, takeaways, and caveats.
 Formatting rules for the article body:
