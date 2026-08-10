@@ -1191,12 +1191,12 @@ function renderImageCard(asset, index) {
   const visual = asset.url
     ? `<img class="image-preview-photo" src="${escapeHtml(asset.url)}" alt="${escapeHtml(asset.altText || `Image ${index + 1}`)}">`
     : `<div class="image-placeholder">Image ${index + 1}</div>`;
-  return `<article class="image-card" data-image-index="${index}" tabindex="0" aria-label="Open image prompt for image ${index + 1}">
+  return `<article class="image-card" data-image-index="${index}" tabindex="0" aria-label="Open master image prompt for image ${index + 1}">
     ${visual}
     <div class="image-card-body">
       <div class="image-card-title-row">
         <h3>${escapeHtml(asset.filename)}</h3>
-        <button class="copy-prompt-btn" type="button" title="Copy image prompt" aria-label="Copy image prompt">
+        <button class="copy-prompt-btn" type="button" title="Copy master image prompt" aria-label="Copy master image prompt">
           <span aria-hidden="true"></span>
         </button>
       </div>
@@ -1235,7 +1235,7 @@ function getImagePromptModal() {
     if (event.target.closest("[data-copy-modal-prompt]")) {
       const prompt = modal.querySelector(".image-prompt-full").textContent;
       await copyText(prompt);
-      showToast("Image prompt copied.");
+      showToast("Master image prompt copied.");
     }
   });
   document.addEventListener("keydown", (event) => {
@@ -1262,25 +1262,45 @@ function closeImagePromptModal() {
 function buildChatGptImagePrompt(asset, index) {
   const imageNumber = index + 1;
   const title = currentPackage?.meta?.chosenTitle || currentPackage?.brief?.topic || "the blog post";
+  const keyword = currentPackage?.meta?.focusKeyword || currentPackage?.brief?.primaryKeyword || title;
   const audience = currentPackage?.brief?.audience || "blog readers";
+  const country = currentPackage?.brief?.country || "";
+  const placement = asset.placement || (imageNumber === 1 ? "Hero Section" : "Blog Section");
+  const aspectRatio = asset.aspectRatio || (imageNumber === 1 ? "16:9" : "4:3");
+  const sectionPurpose = asset.purpose || `visual support for ${placement}`;
   const brandContext = [
     currentPackage?.brief?.brand ? `Brand/context: ${currentPackage.brief.brand}` : "",
     currentPackage?.brief?.companyWebsite ? `Company website context: ${currentPackage.brief.companyWebsite}` : ""
   ].filter(Boolean).join("\n");
-  return `Create a NEW image from scratch. Do not edit or use any existing image. No reference image is required.
+  return `MASTER IMAGE PROMPT FOR CHATGPT
+
+Create a NEW image from scratch. Do not edit or use any existing image. No reference image is required.
 
 Generate image ${imageNumber} for this blog article:
 Title: ${title}
-Placement: ${asset.placement}
-Aspect ratio: ${asset.aspectRatio || "16:9"}
+Main topic/keyword: ${keyword}
+Placement: ${placement}
+Purpose: ${sectionPurpose}
+Aspect ratio: ${aspectRatio}
 Audience: ${audience}
+${country ? `Location/context: ${country}` : ""}
 ${brandContext}
 
-Image scene:
-${asset.prompt}
+Title-based image concept:
+Create a realistic editorial blog image that visually represents "${title}". The image should immediately feel connected to this exact blog title, not a generic business/technology image.
+
+Main scene:
+${asset.prompt || `A professional, realistic editorial scene showing the core idea of "${title}" through relevant people, objects, environment, and visual context.`}
+
+Composition:
+- Clear main subject connected to the blog title.
+- Background should support the topic without becoming busy.
+- Use realistic objects, locations, documents, screens, homes, workplaces, tools, or people only if they make sense for "${title}".
+- For hero images, make it wide, clean, premium, and suitable for a blog header.
+- For section images, focus on the specific placement: ${placement}.
 
 Style:
-Photorealistic, realistic editorial blog image, premium website quality, natural lighting, sharp details, clean composition, professional and trustworthy. The image must clearly match the article title and placement.
+Photorealistic, realistic editorial blog image, premium website quality, natural lighting, sharp details, clean composition, professional, trustworthy, modern, high-resolution.
 
 Avoid:
 ${asset.negativePrompt || "text, watermark, logo, blurry image, distorted hands, fake UI, spelling, cartoon style, unrealistic objects"}
@@ -1289,6 +1309,8 @@ Important:
 - Generate only one new image.
 - Do not ask for an existing image.
 - Do not create text inside the image.
+- Do not show readable words, labels, signage, UI copy, or logos.
+- Do not make a generic stock photo. It must match the title: "${title}".
 - Do not add explanation after generating.
 
 Alt text for context only: ${asset.altText}
@@ -1606,7 +1628,7 @@ imageView?.addEventListener("click", async (event) => {
   if (!asset) return;
   if (event.target.closest(".copy-prompt-btn")) {
     await copyText(buildChatGptImagePrompt(asset, index));
-    showToast("Image prompt copied.");
+    showToast("Master image prompt copied.");
     return;
   }
   openImagePromptModal(asset, index);
