@@ -29,6 +29,7 @@ const loginUsername = document.querySelector("#loginUsername");
 const loginPassword = document.querySelector("#loginPassword");
 const togglePassword = document.querySelector("#togglePassword");
 const logoutBtn = document.querySelector("#logoutBtn");
+const adminBtn = document.querySelector("#adminBtn");
 const topicInput = document.querySelector("#topic");
 const detailsInput = document.querySelector("#details");
 const titleSuggestions = document.querySelector("#titleSuggestions");
@@ -1547,6 +1548,11 @@ document.querySelector("#newDraftBtn").addEventListener("click", () => {
   if (publishStatus) publishStatus.textContent = "Publishing queue idle.";
   resetProgress();
   showToast("New draft started.");
+});
+
+adminBtn?.addEventListener("click", async () => {
+  document.querySelector(".admin-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  await loadAdminData();
 });
 
 document.querySelectorAll(".tab").forEach((tab) => {
