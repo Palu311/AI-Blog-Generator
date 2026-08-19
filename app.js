@@ -76,7 +76,7 @@ const generatorSteps = [
 const BANNED_BLOG_HEADINGS = new Set([
   "seo metadata",
   "hero section",
-  "gemini best practices",
+  "groq best practices",
   "best practices",
   "best practices for better blog output",
   "common mistakes to avoid",
@@ -451,7 +451,7 @@ async function checkServerEngine() {
       aiReady: Boolean(data.aiReady)
     };
     setEngineStatus(
-      data.aiReady ? `Gemini server ready (${data.model}).` : "Local server ready. Add GEMINI_API_KEY for real AI generation; fallback works now.",
+      data.aiReady ? `Groq server ready (${data.model}).` : "Local server ready. Add GROQ_API_KEY for real AI generation; fallback works now.",
       data.aiReady ? "ready" : "fallback"
     );
   } catch {
@@ -521,19 +521,21 @@ function normalizeServerPackage(packageData, brief) {
 
 function collectBrief() {
   const topic = getField("topic");
+  const correctedTopic = normalizeTitleText(topic) || topic;
   const details = getField("details");
-  const primaryKeyword = getField("primaryKeyword") || inferPrimaryKeyword(topic);
+  const primaryKeyword = getField("primaryKeyword") || inferPrimaryKeyword(correctedTopic);
   const secondaryKeywords = splitList(getField("secondaryKeywords"));
-  const wordCount = Number(getField("wordCount")) || 2400;
+  const wantsBriefBlog = /\b(brief|short|concise|quick|summary)\b/i.test(`${correctedTopic} ${details}`);
+  const wordCount = Number(getField("wordCount")) || (wantsBriefBlog ? 700 : 2400);
 
   return {
-    topic: normalizeTitleText(topic) || topic,
+    topic: correctedTopic,
     details,
     companyWebsite: getField("companyWebsite"),
     primaryKeyword,
-    secondaryKeywords: secondaryKeywords.length ? secondaryKeywords : inferSecondaryKeywords(topic, primaryKeyword),
+    secondaryKeywords: secondaryKeywords.length ? secondaryKeywords : inferSecondaryKeywords(correctedTopic, primaryKeyword),
     country: getField("country") || "United States",
-    audience: getField("audience") || inferAudience(topic),
+    audience: getField("audience") || inferAudience(correctedTopic),
     brand: getField("brand"),
     tone: cleanSetting(getField("tone")),
     goal: cleanSetting(getField("goal")),
@@ -545,8 +547,8 @@ function collectBrief() {
     distribution: cleanSetting(getField("distribution")),
     analyticsGoal: cleanSetting(getField("analyticsGoal")),
     communityAngle: getField("communityAngle"),
-    adaptiveFormat: getAdaptiveContentStyle(topic),
-    wordCount: Math.max(wordCount, 1200)
+    adaptiveFormat: getAdaptiveContentStyle(correctedTopic),
+    wordCount: Math.max(wordCount, 400)
   };
 }
 
@@ -568,7 +570,7 @@ function getAdaptiveContentStyle(topic) {
   if (/\bwhat is|meaning|explain|beginner|introduction\b/.test(lower)) return "plain-language paragraphs, examples, definitions, and short unordered lists";
   if (/\bcase study|story|journey|experience\b/.test(lower)) return "narrative paragraphs, subheadings, timeline points, and lessons learned";
   if (/\bnews|update|latest|trend|2026|2027\b/.test(lower)) return "news-style summary, context paragraphs, bullet takeaways, and careful caveats";
-  return "mixed editorial formatting with headings, subheadings, paragraphs, bullets, numbered lists, and tables only where useful";
+  return "mixed editorial formatting with title-specific headings, subheadings, paragraphs, short paragraphs, longer explanatory paragraphs, bullet points, ordered lists, unordered lists, paragraph-plus-point sections, and tables only where useful";
 }
 
 function normalizeTitleText(value) {
@@ -579,8 +581,24 @@ function normalizeTitleText(value) {
     .replace(/\bblogg?\b/gi, "blog")
     .replace(/\bautometically\b/gi, "automatically")
     .replace(/\bformate?\b/gi, "format")
+    .replace(/\breal\s+e+s+t+a+t+e?\b/gi, "real estate")
+    .replace(/\baccodingly\b/gi, "accordingly")
+    .replace(/\bacodingly\b/gi, "accordingly")
     .replace(/\s+/g, " ")
     .trim());
+}
+
+function applyTitleAutocorrect(showMessage = false) {
+  if (!topicInput) return "";
+  const raw = topicInput.value.trim();
+  const corrected = normalizeTitleText(raw);
+  if (corrected && corrected !== raw) {
+    topicInput.value = corrected;
+    updateTitleSuggestions();
+    saveDraft();
+    if (showMessage) showToast(`Title auto-corrected: ${corrected}`);
+  }
+  return corrected || raw;
 }
 
 function updateTitleSuggestions() {
@@ -612,7 +630,7 @@ function updateTitleSuggestions() {
 }
 
 async function generateAutoContain() {
-  const title = getField("topic");
+  const title = applyTitleAutocorrect(true) || getField("topic");
   if (!title) return showToast("Add a blog title first.");
   const button = autoContainBtn;
   button.disabled = true;
@@ -640,7 +658,7 @@ async function generateAutoContain() {
 
 function buildLocalAutoContain(title) {
   const style = getAdaptiveContentStyle(title);
-  return `Write deeply and specifically about the exact blog title "${normalizeTitleText(title)}". Do not write generic content. Every section should directly explain, expand, compare, prove, or answer this title with enough detail for a publish-ready blog. Use adaptive formatting: ${style}. Include the main meaning, reader intent, title-specific headings, useful subheadings, practical examples, important points, mistakes or caveats when useful, edge cases, decision factors, advantages and disadvantages only when relevant, and a clear final thought. Use tables only where comparison helps, ordered lists for steps, unordered lists for points, and paragraph length based on the title. Prefer detailed 3-5 paragraph sections where explanation is needed.`;
+  return `Write deeply and specifically about the exact blog title "${normalizeTitleText(title)}". Do not write generic content. Every section should directly explain, expand, compare, prove, or answer this title with enough detail for a publish-ready blog. First decide what format this exact title requires, then use adaptive formatting: ${style}. Use title-specific headings and subheadings. Some titles need paragraphs, some need short paragraphs, some need longer explanatory paragraphs, some need only points, some need paragraph-plus-point sections, some need ordered lists, some need unordered lists, and some need tables. Use tables only where comparison, features, pricing, timelines, eligibility, or structured facts help. Use ordered lists for steps or sequences. Use unordered lists for grouped points, benefits, mistakes, requirements, or quick takeaways. Include the main meaning, reader intent, practical examples, important points, mistakes or caveats when useful, edge cases, decision factors, advantages and disadvantages only when relevant, and a clear final thought. Match paragraph length and section structure to the title requirement instead of using one fixed format. Content must be accurate, real, and date-aware. Use official/source URLs pasted in this Blog Contain as research context. Do not generate fake content, fake real-time updates, fake statistics, fake quotes, fake current prices, fake laws, fake company facts, fake dates, or fake sources. If the title needs latest/current information but the user has not provided verified source context or URLs, explain carefully and say what must be checked from the latest official source before publishing.`;
 }
 
 function inferPrimaryKeyword(topic) {
@@ -1379,6 +1397,7 @@ function finishProgress() {
 }
 
 async function generate() {
+  applyTitleAutocorrect(true);
   const brief = collectBrief();
   if (!brief.topic) {
     showToast("Add a blog title first.");
@@ -1481,6 +1500,7 @@ form.addEventListener("submit", (event) => {
 });
 
 topicInput?.addEventListener("input", updateTitleSuggestions);
+topicInput?.addEventListener("blur", () => applyTitleAutocorrect(false));
 titleSuggestions?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-title-suggestion]");
   if (!button) return;

@@ -1,4 +1,5 @@
 const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -35,7 +36,7 @@ function loadEnvFile() {
 loadEnvFile();
 
 const port = Number(process.env.PORT || 5173);
-const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 const loginUsername = process.env.LOGIN_USERNAME || "admin";
 const loginPassword = process.env.LOGIN_PASSWORD || "admin123";
 const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
@@ -57,7 +58,7 @@ const mimeTypes = {
 const BANNED_BLOG_HEADINGS = new Set([
   "seo metadata",
   "hero section",
-  "gemini best practices",
+  "groq best practices",
   "best practices",
   "best practices for better blog output",
   "common mistakes to avoid",
@@ -828,6 +829,35 @@ function fetchCompanyWebsiteContextWithPowerShell(url) {
   });
 }
 
+function extractSourceUrls(value) {
+  const matches = String(value || "").match(/https?:\/\/[^\s"'<>),]+/gi) || [];
+  return [...new Set(matches)]
+    .map((url) => normalizeWebsiteUrl(url))
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+async function fetchSourceContextsFromBrief(brief) {
+  const urls = extractSourceUrls([
+    brief.details,
+    brief.sourceNotes,
+    Array.isArray(brief.sources) ? brief.sources.join("\n") : brief.sources
+  ].filter(Boolean).join("\n"));
+
+  if (!urls.length) return [];
+  const contexts = [];
+  for (const url of urls) {
+    const context = await fetchCompanyWebsiteContext(url);
+    contexts.push({
+      url,
+      summary: context?.summary || "",
+      error: context?.error || "",
+      fetchedAt: context?.fetchedAt || new Date().toISOString()
+    });
+  }
+  return contexts;
+}
+
 async function saveDataUrlImage(item) {
   const match = String(item.dataUrl || "").match(/^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/);
   if (!match) throw new Error("Only PNG, JPG, WEBP, and GIF uploads are allowed.");
@@ -937,23 +967,31 @@ function buildPrompt(brief) {
 Create a production-ready blog article and a separate publishing support package in structured JSON.
 
 Rules:
-- Current date: ${new Date().toISOString().slice(0, 10)}. Use current, real-world information when the topic depends on recent rules, laws, taxes, prices, policies, or facts.
+- Current date: ${new Date().toISOString().slice(0, 10)}. Content must be accurate, realistic, and date-aware.
+- For real-time or fast-changing topics, use only facts supplied in Blog Contain, companyWebsiteContext, or stable widely known context. If a latest fact, price, law, policy, rule, model, feature, event, statistic, or date is not supplied or cannot be verified from the provided context, do not invent it.
+- Never generate fake real-time content. Do not fabricate current laws, prices, tax rules, product features, company facts, government data, medical claims, financial returns, quotes, statistics, case studies, names, dates, or sources.
+- When a topic needs live/current facts but the provided context is not enough, write carefully: explain the concept, say what should be verified, and use phrases like "check the latest official source" instead of pretending to know the latest fact.
 - The user-provided Blog Title is the article topic. Do not replace it with a generic title. Keep the generated title very close to the user's Blog Title unless correcting grammar.
 - The article must be deeply related to the Blog Title. Every major section must answer, explain, compare, prove, or expand the exact title.
+- Research and plan from the corrected Blog Title plus Blog Contain before writing. Use the title to identify the topic, reader intent, entities, required format, and likely questions. Use Blog Contain to decide what must be covered and what angle the article should take.
+- Target length: approximately ${Number(brief.wordCount) || 2400} words. If the requested length is under 900 words or Blog Contain asks for a brief/short/concise blog, write a compact blog with fewer sections, short paragraphs, focused points, and no unnecessary filler. If the requested length is higher, add deeper sections and more examples.
 - Write with real depth. Important sections should usually contain 3-5 substantial paragraphs or a mix of paragraphs, examples, bullets, and tables. Avoid thin 1-paragraph sections unless the title clearly calls for a short answer.
 - For each major idea, explain what it means, why it matters, how it works, common mistakes, practical examples, edge cases, and what the reader should check next when relevant.
 - Before writing, identify the important nouns, entities, action words, and intent inside the Blog Title, then make sure those ideas appear throughout the article.
 - Do not write generic content that could fit any topic. Avoid broad filler sections unless they are clearly tied back to the exact Blog Title.
 - If the title is about a specific law, tool, industry, product, location, person, comparison, or process, keep the entire blog anchored to that specific subject.
 - The user-provided Blog Contain is mandatory source direction. Every requested point in Blog Contain must be covered in the article body.
+- If sourceContexts are provided, treat them as research context fetched from URLs in Blog Contain/source notes. Use them for accurate detail, examples, definitions, eligibility, dates, and caveats. Do not cite or claim anything beyond what the source context supports.
 - Company Website is optional context only. If companyWebsiteContext is present, use it to understand brand, services, audience, tone, and positioning, but never let it override Blog Title or Blog Contain.
-- Never invent statistics, quotes, government data, company facts, medical advice, legal advice, or financial claims.
-- If facts are uncertain, avoid exact numbers and say editorial review should verify external references.
+- Never invent statistics, quotes, government data, company facts, medical advice, legal advice, financial claims, real-time updates, or source references.
+- If facts are uncertain, avoid exact numbers and say editorial review should verify external references before publishing.
 - Avoid robotic phrases: "In today's fast-paced world", "game changer", "revolutionary", "unlock the power", "delve into", and "in conclusion".
 - Write naturally, professionally, and helpfully in the same spirit as a high-quality explanatory blog: engaging opener, deep title-specific explanation, practical examples, pros/cons only when natural, important missed points, edge cases, and final thoughts.
-- Use adaptive blog formatting based on the Blog Title and reader intent. Do not force every article into the same template.
-- Choose the best mix of H1, H2, H3, paragraphs, short paragraphs, long paragraphs, bullet lists, ordered lists, tables, examples, comparison blocks, checklists, and point-by-point sections.
-- Use tables only when comparison or structured data helps. Use ordered lists for steps. Use unordered lists for scannable points. Use paragraphs where explanation or storytelling is better.
+- Use adaptive blog formatting based on the Blog Title, Blog Contain, reader intent, and the type of answer required. Do not force every article into the same template.
+- Before writing, decide the best format for this specific title. Some titles need mostly paragraphs; some need short paragraphs with key points; some need only bullet-heavy sections; some need ordered steps; some need unordered lists; some need tables; some need a mix of headings, subheadings, examples, points, and explanation.
+- Choose the best mix of H1, H2, H3, paragraphs, short paragraphs, medium paragraphs, long paragraphs, bullet lists, ordered lists, unordered lists, tables, examples, comparison blocks, checklists, and point-by-point sections.
+- Use tables only when comparison, pricing, features, timelines, eligibility, pros/cons, or structured data helps the reader. Use ordered lists for steps, process, sequence, setup, checklist order, or instructions. Use unordered lists for scannable points, benefits, mistakes, requirements, and quick takeaways. Use paragraphs where explanation, context, story, or reasoning is better.
+- Vary section shape naturally: one section can be a detailed paragraph, another can combine a paragraph plus points, another can be a list, another can be a table, and another can use short practical examples. Match the format to what the title requires.
 - The "markdown" field must contain only the blog article that a reader should see. Do not include SEO metadata, hero section notes, featured image prompts, table of contents, executive summary, supporting image blocks, key takeaways, FAQ, CTA, internal links, schema, image summaries, SEO checklist, publishing playbook, or quality-control notes inside "markdown".
 - Image prompts, SEO data, and publishing suggestions must stay in their own JSON fields outside "markdown".
 - Featured and supporting image prompts must be photorealistic, editorial, realistic, modern, no text, no watermark, 16:9 for hero.
@@ -1075,7 +1113,12 @@ function normalizeAdvantagesDisadvantages(value) {
 }
 
 function sentenceCase(value) {
-  const clean = String(value || "").trim().replace(/\s+/g, " ");
+  const clean = String(value || "")
+    .replace(/\breal\s+e+s+t+a+t+e?\b/gi, "real estate")
+    .replace(/\baccodingly\b/gi, "accordingly")
+    .replace(/\bacodingly\b/gi, "accordingly")
+    .trim()
+    .replace(/\s+/g, " ");
   return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : "";
 }
 
@@ -1100,7 +1143,7 @@ async function buildFallbackPackage(brief, reason) {
   const distribution = brief.distribution || "Website blog and SEO";
   const analyticsGoal = brief.analyticsGoal || "Organic traffic and ranking";
   const communityAngle = brief.communityAngle || "Reader questions and comments";
-  const readingTime = `${Math.max(4, Math.ceil(wordCount / 220))} min read`;
+  const readingTime = `${Math.max(1, Math.ceil(wordCount / 220))} min read`;
   const title = topic || `${sentenceCase(keyword)}: Complete Guide`;
   const companyContext = brief.companyWebsiteContext?.summary
     ? `\n\nCompany context from ${brief.companyWebsiteContext.url}: ${brief.companyWebsiteContext.summary.slice(0, 700)}`
@@ -1282,7 +1325,7 @@ ${sections.map((section) => `## ${section.heading}\n\n${section.body}`).join("\n
 
 ## Can this tool work without an API key?
 
-Yes. It uses a local fallback generator. Add GEMINI_API_KEY for real AI generation.
+Yes. It uses a local fallback generator. Add GROQ_API_KEY for real AI generation.
 
 ## Is the output publication-ready?
 
@@ -1378,30 +1421,23 @@ function extractJson(text) {
   return JSON.parse(match[0]);
 }
 
-function extractGeminiText(data) {
-  return data.candidates?.[0]?.content?.parts
-    ?.map((part) => part.text || "")
-    .join("\n") || "";
+function extractGroqText(data) {
+  return data.choices?.[0]?.message?.content || "";
 }
 
-function runPowerShellGeminiRequest(requestPayload) {
+function runPowerShellGroqRequest(requestPayload) {
   return new Promise((resolve, reject) => {
-    const requestFile = path.join(os.tmpdir(), `gemini-request-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
-    const responseFile = path.join(os.tmpdir(), `gemini-response-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
-    fs.writeFileSync(requestFile, JSON.stringify({
-      contents: requestPayload.contents,
-      generationConfig: requestPayload.generationConfig,
-      ...(requestPayload.tools ? { tools: requestPayload.tools } : {})
-    }), "utf8");
+    const requestFile = path.join(os.tmpdir(), `groq-request-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+    const responseFile = path.join(os.tmpdir(), `groq-response-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+    fs.writeFileSync(requestFile, JSON.stringify(requestPayload), "utf8");
 
     const script = [
       "$ErrorActionPreference = 'Stop'",
-      "$payload = Get-Content -Raw -LiteralPath $env:GEMINI_REQUEST_FILE",
-      "$model = [Uri]::EscapeDataString($env:GEMINI_CALL_MODEL)",
-      "$uri = \"https://generativelanguage.googleapis.com/v1beta/models/$model`:generateContent\"",
-      "$headers = @{ 'x-goog-api-key' = $env:GEMINI_API_KEY; 'Content-Type' = 'application/json' }",
+      "$payload = Get-Content -Raw -LiteralPath $env:GROQ_REQUEST_FILE",
+      "$uri = 'https://api.groq.com/openai/v1/chat/completions'",
+      "$headers = @{ 'Authorization' = \"Bearer $env:GROQ_API_KEY\"; 'Content-Type' = 'application/json' }",
       "$response = Invoke-WebRequest -Uri $uri -Method Post -Headers $headers -Body $payload -UseBasicParsing -TimeoutSec 90",
-      "Set-Content -LiteralPath $env:GEMINI_RESPONSE_FILE -Value $response.Content -Encoding UTF8"
+      "Set-Content -LiteralPath $env:GROQ_RESPONSE_FILE -Value $response.Content -Encoding UTF8"
     ].join("; ");
 
     execFile(
@@ -1410,9 +1446,8 @@ function runPowerShellGeminiRequest(requestPayload) {
       {
         env: {
           ...process.env,
-          GEMINI_REQUEST_FILE: requestFile,
-          GEMINI_RESPONSE_FILE: responseFile,
-          GEMINI_CALL_MODEL: requestPayload.modelName || model
+          GROQ_REQUEST_FILE: requestFile,
+          GROQ_RESPONSE_FILE: responseFile
         },
         timeout: 100000,
         windowsHide: true
@@ -1426,7 +1461,7 @@ function runPowerShellGeminiRequest(requestPayload) {
           try {
             fs.rmSync(responseFile, { force: true });
           } catch {}
-          reject(new Error(stderr.trim() || error.message || "PowerShell Gemini request failed"));
+          reject(new Error(stderr.trim() || error.message || "PowerShell Groq request failed"));
           return;
         }
 
@@ -1442,60 +1477,149 @@ function runPowerShellGeminiRequest(requestPayload) {
   });
 }
 
-async function requestGeminiPackage(brief, modelName) {
-  const requestPayload = {
-    modelName,
-    contents: [{
+function runNodeHttpsGroqRequest(requestPayload) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(requestPayload);
+    const req = https.request(
+      {
+        hostname: "api.groq.com",
+        path: "/openai/v1/chat/completions",
+        method: "POST",
+        rejectUnauthorized: false,
+        timeout: 120000,
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body)
+        }
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
+          try {
+            const data = JSON.parse(text);
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+              reject(new Error(data.error?.message || `Groq HTTPS request failed with ${res.statusCode}`));
+              return;
+            }
+            resolve(data);
+          } catch (parseError) {
+            reject(new Error(text || parseError.message));
+          }
+        });
+      }
+    );
+    req.on("timeout", () => {
+      req.destroy(new Error("Groq HTTPS request timed out"));
+    });
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+function runCurlGroqRequest(requestPayload) {
+  return new Promise((resolve, reject) => {
+    const requestFile = path.join(os.tmpdir(), `groq-curl-request-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+    const responseFile = path.join(os.tmpdir(), `groq-curl-response-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+    fs.writeFileSync(requestFile, JSON.stringify(requestPayload), "utf8");
+
+    execFile(
+      "curl.exe",
+      [
+        "--silent",
+        "--show-error",
+        "--fail-with-body",
+        "--max-time",
+        "120",
+        "https://api.groq.com/openai/v1/chat/completions",
+        "-H",
+        `Authorization: Bearer ${process.env.GROQ_API_KEY}`,
+        "-H",
+        "Content-Type: application/json",
+        "--data-binary",
+        `@${requestFile}`,
+        "--output",
+        responseFile
+      ],
+      { timeout: 130000, windowsHide: true },
+      (error, stdout, stderr) => {
+        try {
+          fs.rmSync(requestFile, { force: true });
+        } catch {}
+
+        if (error) {
+          let responseText = "";
+          try {
+            responseText = fs.readFileSync(responseFile, "utf8").replace(/^\uFEFF/, "");
+          } catch {}
+          try {
+            fs.rmSync(responseFile, { force: true });
+          } catch {}
+          reject(new Error(responseText || stderr.trim() || error.message || "curl Groq request failed"));
+          return;
+        }
+
+        try {
+          const text = fs.readFileSync(responseFile, "utf8").replace(/^\uFEFF/, "");
+          fs.rmSync(responseFile, { force: true });
+          resolve(JSON.parse(text));
+        } catch (parseError) {
+          reject(parseError);
+        }
+      }
+    );
+  });
+}
+
+function buildGroqRequest(prompt, modelName, temperature) {
+  return {
+    model: modelName,
+    messages: [{
       role: "user",
-      parts: [{
-        text: `Return valid JSON only. Do not wrap it in Markdown.\n\n${buildPrompt(brief)}`
-      }]
+      content: prompt
     }],
-    tools: [{ google_search: {} }],
-    generationConfig: {
-      temperature: 0.7,
-      responseMimeType: "application/json"
-    }
+    temperature,
+    response_format: { type: "json_object" }
+  };
+}
+
+async function requestGroqPackage(brief, modelName) {
+  const requestPayload = {
+    ...buildGroqRequest(`Return valid JSON only. Do not wrap it in Markdown.\n\n${buildPrompt(brief)}`, modelName, 0.7)
   };
 
   let data;
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`;
+    const endpoint = "https://api.groq.com/openai/v1/chat/completions";
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
-        "x-goog-api-key": process.env.GEMINI_API_KEY,
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        contents: requestPayload.contents,
-        generationConfig: requestPayload.generationConfig,
-        tools: requestPayload.tools
-      })
+      body: JSON.stringify(requestPayload)
     });
     data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message || `Gemini request failed with ${response.status}`);
+    if (!response.ok) throw new Error(data.error?.message || `Groq request failed with ${response.status}`);
   } catch (nativeFetchError) {
     try {
-      data = await runPowerShellGeminiRequest({
-        modelName,
-        contents: requestPayload.contents,
-        generationConfig: requestPayload.generationConfig,
-        tools: requestPayload.tools
-      });
-    } catch (groundedError) {
-      data = await runPowerShellGeminiRequest({
-        modelName,
-        contents: requestPayload.contents,
-        generationConfig: requestPayload.generationConfig
-      });
+      data = await runNodeHttpsGroqRequest(requestPayload);
+    } catch (nodeHttpsError) {
+      try {
+        data = await runPowerShellGroqRequest(requestPayload);
+      } catch (powerShellError) {
+        data = await runCurlGroqRequest(requestPayload);
+      }
     }
   }
 
-  return extractJson(extractGeminiText(data) || "");
+  return extractJson(extractGroqText(data) || "");
 }
 
-async function requestGeminiEnhancement(brief, modelName) {
+async function requestGroqEnhancement(brief, modelName) {
   const compactPrompt = `Return valid JSON only for this blog generation brief.
 Brief: ${JSON.stringify(brief)}
 Current date: ${new Date().toISOString().slice(0, 10)}
@@ -1522,69 +1646,62 @@ Shape:
     "communityPlan": "string"
   }
 }
-Use Google Search grounding for real-time/current facts when helpful.
+Use careful, non-fabricated reasoning for current facts. The content must be accurate, realistic, and date-aware.
+For real-time or fast-changing topics, use only facts supplied in Blog Contain, companyWebsiteContext, or stable widely known context. If a latest fact, price, law, policy, rule, model, feature, event, statistic, or date is not supplied or cannot be verified from the provided context, do not invent it.
+Never generate fake real-time content. Do not fabricate current laws, prices, tax rules, product features, company facts, government data, medical claims, financial returns, quotes, statistics, case studies, names, dates, or sources.
+When a topic needs live/current facts but the provided context is not enough, explain the concept, say what should be verified, and use phrases like "check the latest official source" instead of pretending to know the latest fact.
 The article must be based on the user's Blog Title and Blog Contain. Do not drift into a generic CRM/product article.
+Research and plan from the corrected Blog Title plus Blog Contain before writing. Use the title to identify topic, reader intent, entities, required format, and likely questions. Use Blog Contain to decide what must be covered and what angle the article should take.
+Target length: approximately ${Number(brief.wordCount) || 2400} words. If the requested length is under 900 words or Blog Contain asks for a brief/short/concise blog, write a compact blog with fewer sections, short paragraphs, focused points, and no unnecessary filler. If the requested length is higher, add deeper sections and more examples.
+If sourceContexts are provided in the brief, treat them as fetched research context from URLs in Blog Contain/source notes. Use them for accurate detail, examples, definitions, eligibility, dates, and caveats. Do not cite or claim anything beyond what the source context supports.
 The Blog Title is the anchor. Every H2/H3 section must clearly connect to that exact title. If a paragraph could fit any other topic, rewrite it to include title-specific detail.
 Use the important nouns, entities, action words, and intent from the Blog Title throughout the article.
 Write deep content: explain context, causes, process, examples, edge cases, mistakes, checks, and practical implications that belong to this exact title.
 If companyWebsiteContext is available, use it only for brand/audience/service positioning and examples. Do not turn the article into a company landing page unless the Blog Title asks for that.
-Do not write every article with the same fixed headings. Choose headings and formatting that match the Blog Title. A tutorial can use steps and ordered lists; a comparison can use tables; a listicle can use ranked H2 sections; an explanatory topic can use plain-language paragraphs and examples; a news/trend topic can use context, takeaways, and caveats.
+Do not write every article with the same fixed headings. Choose headings and formatting that match the Blog Title, Blog Contain, reader intent, and required answer type. A tutorial can use steps and ordered lists; a comparison can use tables; a listicle can use ranked H2 sections; an explanatory topic can use plain-language paragraphs and examples; a news/trend topic can use context, takeaways, and caveats; a quick-answer title can use concise paragraphs and scannable points; a detailed guide can use longer paragraphs, subheadings, examples, and tables where helpful.
 Formatting rules for the article body:
 - Bold example labels exactly like **Example 1:**, **Example 2:**, **Example 3:**.
-- Use bullet points where the reader needs a scannable list, ordered lists for steps, and tables for comparisons or structured facts.
+- Before writing, choose the correct article format for the specific title. Use title, headings, subheadings, paragraphs, short paragraphs, long paragraphs, bullet points, ordered lists, unordered lists, tables, examples, practical points, and paragraph-plus-point sections only when they fit the requirement.
+- Use bullet points where the reader needs a scannable list, ordered lists for steps or sequences, unordered lists for grouped points, and tables for comparisons or structured facts.
+- Vary the article naturally: some sections may be only paragraphs, some may be only points, some may combine paragraphs with points, some may need a table, and some may need bigger explanatory paragraphs. Match every section to the title's requirement.
 - Use **Advantages** and **Disadvantages** labels only when the topic naturally needs pros and cons.
 - Keep headings and subheadings professional, like a polished blog on a top publishing site.
-Do not create internal tool headings in article content. Never use these article headings: SEO Metadata, Hero Section, Gemini Best Practices, Best Practices for Better Blog Output, Common Mistakes to Avoid, How to Measure Success, Publishing and Growth Playbook, Quality Control, Key Takeaways, Publishing & Growth Playbook, FAQ, Call To Action, Image Assets Summary, SEO Checklist.
+Do not create internal tool headings in article content. Never use these article headings: SEO Metadata, Hero Section, Groq Best Practices, Best Practices for Better Blog Output, Common Mistakes to Avoid, How to Measure Success, Publishing and Growth Playbook, Quality Control, Key Takeaways, Publishing & Growth Playbook, FAQ, Call To Action, Image Assets Summary, SEO Checklist.
 Use the user-provided blog contain as source context.
-Do not invent statistics, quotes, named case studies, current prices, laws, medical claims, financial returns, or unverifiable facts.
-When live facts are needed but not provided, explain the concept accurately and phrase claims carefully instead of fabricating numbers.`;
+Do not invent statistics, quotes, named case studies, current prices, laws, medical claims, financial returns, source links, dates, or unverifiable facts.
+When live facts are needed but not provided, explain the concept accurately and phrase claims carefully instead of fabricating numbers, dates, sources, or updates.`;
 
-  const requestPayload = {
-    modelName,
-    contents: [{
-      role: "user",
-      parts: [{ text: compactPrompt }]
-    }],
-    tools: [{ google_search: {} }],
-    generationConfig: {
-      temperature: 0.65,
-      responseMimeType: "application/json"
-    }
-  };
+  const requestPayload = buildGroqRequest(compactPrompt, modelName, 0.65);
 
   let data;
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`;
+    const endpoint = "https://api.groq.com/openai/v1/chat/completions";
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
-        "x-goog-api-key": process.env.GEMINI_API_KEY,
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        contents: requestPayload.contents,
-        generationConfig: requestPayload.generationConfig,
-        tools: requestPayload.tools
-      })
+      body: JSON.stringify(requestPayload)
     });
     data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message || `Gemini enhancement failed with ${response.status}`);
+    if (!response.ok) throw new Error(data.error?.message || `Groq enhancement failed with ${response.status}`);
   } catch {
     try {
-      data = await runPowerShellGeminiRequest(requestPayload);
-    } catch (groundedError) {
-      data = await runPowerShellGeminiRequest({
-        modelName,
-        contents: requestPayload.contents,
-        generationConfig: requestPayload.generationConfig
-      });
+      data = await runNodeHttpsGroqRequest(requestPayload);
+    } catch (nodeHttpsError) {
+      try {
+        data = await runPowerShellGroqRequest(requestPayload);
+      } catch (powerShellError) {
+        data = await runCurlGroqRequest(requestPayload);
+      }
     }
   }
 
-  return extractJson(extractGeminiText(data) || "");
+  return extractJson(extractGroqText(data) || "");
 }
 
-async function applyGeminiEnhancement(brief, enhancement, usedModel, reason) {
+async function applyGroqEnhancement(brief, enhancement, usedModel, reason) {
   const packageData = await buildFallbackPackage(brief, reason);
   const requestedTitle = sentenceCase(brief.topic);
   const finalTitle = requestedTitle || enhancement.title || packageData.title;
@@ -1619,7 +1736,7 @@ async function applyGeminiEnhancement(brief, enhancement, usedModel, reason) {
     .replace(/SEO Title: .+/, `SEO Title: ${packageData.meta.seoTitle}`)
     .replace(/Meta Description: .+/, `Meta Description: ${packageData.meta.metaDescription}`)
     .replace(/Search Intent: .+/, `Search Intent: ${packageData.meta.searchIntent}`)
-    .replace(/# Executive Summary[\s\S]*?---/, `# Executive Summary\n\n${enhancement.executiveSummary || "This Gemini-assisted draft provides a CRM-ready structure with SEO metadata, image prompts, FAQs, and export-ready Markdown."}\n\n---`)
+    .replace(/# Executive Summary[\s\S]*?---/, `# Executive Summary\n\n${enhancement.executiveSummary || "This Groq-assisted draft provides a CRM-ready structure with SEO metadata, image prompts, FAQs, and export-ready Markdown."}\n\n---`)
     .replace(/# Publishing & Growth Playbook[\s\S]*?---\n\n# FAQ/, `# Publishing & Growth Playbook\n\n${playbookText || "This blog should use templates, SEO tools, analytics, monetization planning, and community feedback loops to move from draft to growth."}\n\n---\n\n# FAQ`)
     .replace(/# FAQ[\s\S]*?---\n\n# Call To Action/, `# FAQ\n\n## How can I improve the generated blog?\n\nAdd clear source notes, audience context, and any points that must appear in the final article.\n\n---\n\n# Call To Action`);
 
@@ -1667,32 +1784,31 @@ async function applyGeminiEnhancement(brief, enhancement, usedModel, reason) {
   packageData.markdown = sanitizeBlogMarkdown(packageData.markdown);
 
   packageData.status = reason === "compact editorial generation"
-    ? `Generated with Gemini (${usedModel}) and assembled as a full editorial blog package`
-    : `Generated with Gemini (${usedModel}) using compact editorial mode after retry: ${reason}`;
+    ? `Generated with Groq (${usedModel}) and assembled as a full editorial blog package`
+    : `Generated with Groq (${usedModel}) using compact editorial mode after retry: ${reason}`;
   packageData.score = Math.max(packageData.score, 90);
   packageData.generatedAt = new Date().toISOString();
   return packageData;
 }
 
-async function callGemini(brief) {
-  if (!process.env.GEMINI_API_KEY) {
+async function callGroq(brief) {
+  if (!process.env.GROQ_API_KEY) {
     return {
       ok: true,
       fallback: true,
-      message: "GEMINI_API_KEY is not set. Local fallback package generated.",
-      packageData: await buildFallbackPackage(brief, "GEMINI_API_KEY is not set")
+      message: "GROQ_API_KEY is not set. Local fallback package generated.",
+      packageData: await buildFallbackPackage(brief, "GROQ_API_KEY is not set")
     };
   }
 
-  const modelQueue = [...new Set([model, "gemini-3.6-flash", "gemini-3.5-flash"])];
+  const modelQueue = [...new Set([model, "openai/gpt-oss-120b", "openai/gpt-oss-20b"])];
   let lastError;
   let packageData;
   let usedModel = model;
 
   for (const modelName of modelQueue) {
     try {
-      const enhancement = await requestGeminiEnhancement(brief, modelName);
-      packageData = await applyGeminiEnhancement(brief, enhancement, modelName, "compact editorial generation");
+      packageData = await requestGroqPackage(brief, modelName);
       usedModel = modelName;
       break;
     } catch (error) {
@@ -1702,7 +1818,13 @@ async function callGemini(brief) {
 
   if (!packageData) for (const modelName of modelQueue) {
     try {
-      packageData = await requestGeminiPackage(brief, modelName);
+      const enhancement = await requestGroqEnhancement(brief, modelName);
+      packageData = await applyGroqEnhancement(
+        brief,
+        enhancement,
+        modelName,
+        lastError?.message || "full-package response was unavailable"
+      );
       usedModel = modelName;
       break;
     } catch (error) {
@@ -1711,38 +1833,25 @@ async function callGemini(brief) {
   }
 
   if (!packageData) {
-    for (const modelName of modelQueue) {
-      try {
-        const enhancement = await requestGeminiEnhancement(brief, modelName);
-        packageData = await applyGeminiEnhancement(
-          brief,
-          enhancement,
-          modelName,
-          lastError?.message || "full-package response was unavailable"
-        );
-        break;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-  }
-
-  if (!packageData) {
-    packageData = await buildFallbackPackage(brief, lastError?.message || "Gemini generation failed");
+    packageData = await buildFallbackPackage(brief, lastError?.message || "Groq generation failed");
     packageData.fallback = true;
   }
   packageData.brief = brief;
   packageData.markdown = sanitizeBlogMarkdown(packageData.markdown || "");
-  packageData.status = packageData.status || `Generated with Gemini (${usedModel}) and ready for editorial review`;
+  packageData.status = packageData.status || `Generated with Groq (${usedModel}) using title/content-adaptive formatting`;
   packageData.generatedAt = new Date().toISOString();
   return { ok: true, packageData };
 }
 
 async function enrichBrief(brief) {
   const enriched = { ...brief };
+  enriched.topic = sentenceCase(enriched.topic);
   if (enriched.companyWebsite && !enriched.companyWebsiteContext) {
     enriched.companyWebsite = normalizeWebsiteUrl(enriched.companyWebsite) || enriched.companyWebsite;
     enriched.companyWebsiteContext = await fetchCompanyWebsiteContext(enriched.companyWebsite);
+  }
+  if (!Array.isArray(enriched.sourceContexts) || !enriched.sourceContexts.length) {
+    enriched.sourceContexts = await fetchSourceContextsFromBrief(enriched);
   }
   return enriched;
 }
@@ -1751,7 +1860,7 @@ async function handleApi(req, res) {
   if (req.url === "/api/health" && req.method === "GET") {
     sendJson(res, 200, {
       ok: true,
-      aiReady: Boolean(process.env.GEMINI_API_KEY),
+      aiReady: Boolean(process.env.GROQ_API_KEY),
       model,
       time: new Date().toISOString()
     });
@@ -1884,7 +1993,7 @@ async function handleApi(req, res) {
         return;
       }
       writeUserLog("generate", `Generated blog: ${payload.brief.topic}`, loginUsername);
-      sendJson(res, 200, await callGemini(await enrichBrief(payload.brief)));
+      sendJson(res, 200, await callGroq(await enrichBrief(payload.brief)));
     } catch (error) {
       sendJson(res, 200, {
         ok: true,
@@ -2080,7 +2189,7 @@ async function runGenerationJob(jobId, brief) {
       update(Math.min(80, 22 + Math.round((index / chapters) * 48)), `Writing Chapter ${index}...`);
     }
     update(84, "Continuing and checking repeated headings...");
-    const packageData = await callGemini(enrichedBrief);
+    const packageData = await callGroq(enrichedBrief);
     update(92, "Matching admin image library...");
     update(96, "Formatting...");
     job.status = "complete";
@@ -2146,7 +2255,7 @@ if (require.main === module) {
   server.listen(port, "127.0.0.1", () => {
     fs.writeFileSync(path.join(root, "server.pid"), String(process.pid));
     console.log(`AI Blog Generator running at http://127.0.0.1:${port}`);
-    console.log(process.env.GEMINI_API_KEY ? `Gemini mode enabled with ${model}` : "Gemini key not found; fallback mode enabled.");
+    console.log(process.env.GROQ_API_KEY ? `Groq mode enabled with ${model}` : "Groq key not found; fallback mode enabled.");
   });
 }
 
